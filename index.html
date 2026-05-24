@@ -280,6 +280,17 @@
   }
   .btn-generate.hidden-btn { display: none; }
 
+  .server-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+  .server-dot.online { background: #4caf50; }
+  .server-dot.offline { background: #f44336; }
+  .server-dot.checking { background: #ff9800; }
+
   .sub-select {
     flex: 1;
     background: #0f3460;
@@ -430,13 +441,6 @@
 <audio id="audioElem"></audio>
 
 <script src="https://cdn.jsdelivr.net/npm/mp4box@0.5.3/dist/mp4box.all.min.js"></script>
-<script type="importmap">
-{ "imports": { "browser-whisper": "https://esm.sh/browser-whisper@1.0.2" } }
-</script>
-<script type="module">
-import { BrowserWhisper } from 'browser-whisper';
-window._bw = { BrowserWhisper };
-</script>
 
 <script>
   const fileInput = document.getElementById('fileInput');
@@ -479,6 +483,11 @@ window._bw = { BrowserWhisper };
   let bwInstance = null;
   let bwRunning = false;
   let generatedSubs = null; // { vtt, label } for current file
+
+  // Server state
+  const SERVER_URL = '';  // same origin, combined server
+  let serverOnline = false;
+  let serverChecking = false;
 
   function updateLoopBtn() {
     btnLoop.textContent = loopIcons[loopMode] + ' ' + loopLabels[loopMode];
@@ -754,14 +763,75 @@ window._bw = { BrowserWhisper };
     } catch { /* ignore */ }
   }
 
+  let bwLoading = false;
+
   async function getBW() {
     if (bwInstance) return bwInstance;
-    if (!window._bw || !window._bw.BrowserWhisper) {
+    if (bwLoading) return null;
+    bwLoading = true;
+
+    try {
+      if (!window._bw || !window._bw.BrowserWhisper) {
+        btnGenerate.textContent = 'モジュール読込中...';
+        const mod = await import('https://esm.sh/browser-whisper@1.0.2');
+        window._bw = { BrowserWhisper: mod.BrowserWhisper };
+      }
+      bwInstance = new window._bw.BrowserWhisper({ model: 'whisper-tiny', language: 'ja' });
+      bwLoading = false;
+      return bwInstance;
+    } catch (err) {
+      console.error('BrowserWhisper load error:', err);
       showError('BW未読込');
+      bwLoading = false;
       return null;
     }
-    bwInstance = new window._bw.BrowserWhisper({ model: 'whisper-tiny', language: 'ja' });
-    return bwInstance;
+  }
+
+  // ── Server-side transcription ──
+  async function checkServerHealth() {
+    if (serverChecking) return;
+    serverChecking = true;
+    try {
+      const res = await fetch(SERVER_URL + '/health', { signal: AbortSignal.timeout(3000) });
+      serverOnline = res.ok;
+    } catch {
+      serverOnline = false;
+    }
+    serverChecking = false;
+    updateGenerateBtn();
+  }
+
+  function updateGenerateBtn() {
+    if (serverOnline) {
+      btnGenerate.innerHTML = '<span class="server-dot online"></span>サーバー認識';
+      btnGenerate.title = 'サーバーで高速認識';
+    } else if (serverChecking) {
+      btnGenerate.innerHTML = '<span class="server-dot checking"></span>字幕生成';
+    } else {
+      btnGenerate.innerHTML = '<span class="server-dot offline"></span>字幕生成';
+      btnGenerate.title = 'ローカル認識（低速）';
+    }
+  }
+
+  async function serverTranscribe(file) {
+    btnGenerate.textContent = 'サーバー送信中...';
+    const res = await fetch('/transcribe', {
+      method: 'POST',
+      body: file.stream(),
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'X-Filename': encodeURIComponent(file.name || 'audio.wav')
+      }
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error('Server error ' + res.status + ': ' + errText);
+    }
+
+    btnGenerate.textContent = '処理中...';
+    const data = await res.json();
+    return data.segments; // [{ start, end, text }, ...] in seconds
   }
 
   function segmentsToVtt(segments) {
@@ -789,65 +859,130 @@ window._bw = { BrowserWhisper };
     return vtt;
   }
 
+  async function decodeAudioToPCM(file) {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+    try {
+      const buf = await file.arrayBuffer();
+      const audioBuf = await ctx.decodeAudioData(buf);
+      const offlineCtx = new OfflineAudioContext(1, Math.ceil(audioBuf.duration * 16000), 16000);
+      const source = offlineCtx.createBufferSource();
+      source.buffer = audioBuf;
+      source.connect(offlineCtx.destination);
+      source.start(0);
+      const rendered = await offlineCtx.startRendering();
+      return rendered.getChannelData(0);
+    } finally {
+      ctx.close();
+    }
+  }
+
   async function startTranscription() {
     if (bwRunning) return;
     const item = playlist[currentIndex];
     if (!item) return;
 
-    const bw = await getBW();
-    if (!bw) return;
-
     bwRunning = true;
-    btnGenerate.textContent = '準備中...';
     btnGenerate.classList.add('loading');
 
     const segments = [];
     const startTime = Date.now();
 
-    try {
-      const stream = bw.transcribe(item.file, {
-        onProgress: (evt) => {
-          if (evt.stage === 'loading') {
-            btnGenerate.textContent = 'モデル ' + Math.round(evt.progress * 100) + '%';
-          } else if (evt.stage === 'decoding') {
-            btnGenerate.textContent = '音声変換中...';
-          } else if (evt.stage === 'transcribing') {
-            btnGenerate.textContent = '認識中 ' + Math.round(evt.progress * 100) + '%';
-          }
+    // ── Try server first ──
+    if (serverOnline) {
+      try {
+        btnGenerate.textContent = 'サーバー認識中...';
+        const serverSegs = await serverTranscribe(item.file);
+        for (const s of serverSegs) {
+          segments.push({
+            timeStart: s.start * 1000,
+            timeEnd: s.end * 1000,
+            text: s.text
+          });
         }
-      });
-
-      for await (const seg of stream) {
-        segments.push({
-          timeStart: seg.start * 1000,
-          timeEnd: seg.end * 1000,
-          text: seg.text
-        });
+        console.log('Server done: ' + segments.length + ' segments in ' +
+          ((Date.now() - startTime) / 1000).toFixed(1) + 's');
+      } catch (err) {
+        console.warn('Server failed, falling back to local:', err.message);
+        serverOnline = false;
+        updateGenerateBtn();
       }
-    } catch (err) {
-      console.error('transcribe error:', err);
-      showError('認識失敗');
-      bwRunning = false;
-      return;
+    }
+
+    // ── Local browser-whisper fallback ──
+    if (segments.length === 0) {
+      const bw = await getBW();
+      if (!bw) { bwRunning = false; btnGenerate.classList.remove('loading'); updateGenerateBtn(); return; }
+
+      let pcm = null;
+      try {
+        btnGenerate.textContent = '音声変換中...';
+        pcm = await decodeAudioToPCM(item.file);
+        const totalSec = pcm.length / 16000;
+        console.log('Decoded: ' + totalSec.toFixed(1) + 's');
+
+        const CHUNK_SEC = 120;
+        const chunkSamples = CHUNK_SEC * 16000;
+        const numChunks = Math.ceil(pcm.length / chunkSamples);
+
+        for (let c = 0; c < numChunks; c++) {
+          const startSample = c * chunkSamples;
+          const endSample = Math.min(pcm.length, startSample + chunkSamples);
+          const chunk = pcm.slice(startSample, endSample);
+          const offsetSec = startSample / 16000;
+
+          btnGenerate.textContent = '認識中 ' + (c + 1) + '/' + numChunks;
+
+          const stream = bw.transcribePCM(chunk, {
+            language: 'ja',
+            onProgress: (evt) => {
+              if (evt.stage === 'loading') {
+                btnGenerate.textContent = 'チャンク' + (c + 1) + '/' + numChunks + ' 読込中';
+              } else if (evt.stage === 'transcribing') {
+                btnGenerate.textContent = '認識中 ' + (c + 1) + '/' + numChunks + ' ' + Math.round(evt.progress * 100) + '%';
+              }
+            }
+          });
+
+          for await (const seg of stream) {
+            segments.push({
+              timeStart: (offsetSec + seg.start) * 1000,
+              timeEnd: (offsetSec + seg.end) * 1000,
+              text: seg.text
+            });
+          }
+          console.log('Chunk ' + (c + 1) + '/' + numChunks + ' done, total: ' + segments.length);
+        }
+      } catch (err) {
+        console.error('Local transcribe error:', err);
+      }
+      pcm = null;
     }
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log('Done in ' + elapsed + 's, ' + segments.length + ' segments');
 
+    // Save results (partial if some chunks failed)
     if (segments.length === 0) {
       btnGenerate.textContent = '字幕なし';
       btnGenerate.classList.remove('loading');
-      setTimeout(() => { btnGenerate.textContent = '字幕生成'; }, 2000);
+      setTimeout(() => { updateGenerateBtn(); }, 2000);
       bwRunning = false;
       return;
     }
 
-    const vtt = segmentsToVtt(segments);
-    cacheSubs(item, vtt);
-    generatedSubs = { vtt, label: '[自動] 音声認識' };
-    addSubTrack(generatedSubs.label, 'ja', vtt);
-    btnGenerate.classList.remove('loading');
-    btnGenerate.classList.add('hidden-btn');
+    try {
+      const vtt = segmentsToVtt(segments);
+      console.log('VTT size:', (vtt.length / 1024).toFixed(1) + 'KB');
+      cacheSubs(item, vtt);
+      generatedSubs = { vtt, label: '[自動] 音声認識' };
+      addSubTrack(generatedSubs.label, 'ja', vtt);
+      btnGenerate.classList.remove('loading');
+      btnGenerate.classList.add('hidden-btn');
+    } catch (err) {
+      console.error('VTT/save error:', err);
+      showError('字幕保存失敗');
+    }
+
     bwRunning = false;
   }
 
@@ -857,15 +992,11 @@ window._bw = { BrowserWhisper };
     btnGenerate.classList.add('loading');
     setTimeout(() => {
       btnGenerate.classList.remove('loading');
-      btnGenerate.textContent = '字幕生成';
+      updateGenerateBtn();
     }, 3000);
   }
 
   btnGenerate.addEventListener('click', () => {
-    if (!window._bw || !window._bw.BrowserWhisper) {
-      showError('BW未読込');
-      return;
-    }
     startTranscription();
   });
 
@@ -882,7 +1013,7 @@ window._bw = { BrowserWhisper };
     subTracks.length = 0;
     generatedSubs = null;
     btnGenerate.classList.remove('loading');
-    btnGenerate.textContent = '字幕生成';
+    updateGenerateBtn();
     btnSub.style.display = '';
     subSelect.style.display = '';
     subtitleBar.classList.add('hidden');
@@ -1255,6 +1386,8 @@ window._bw = { BrowserWhisper };
   }
 
   updateLoopBtn();
+  updateGenerateBtn();
+  checkServerHealth();
 </script>
 
 </body>
