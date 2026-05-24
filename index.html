@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+<title>播放器</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a1a2e">
+
+<!-- iOS -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="播放器">
+<link rel="apple-touch-icon" href="icon-192.png">
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+    user-select: none;
+    -webkit-user-select: none;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  .player {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 16px;
+    background: #16213e;
+    border-radius: 16px;
+    padding: 24px 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+
+  .player-title {
+    text-align: center;
+    font-size: 12px;
+    color: #888;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  /* Open file */
+  .file-area {
+    margin-bottom: 20px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .file-name {
+    flex: 1;
+    background: #0f3460;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: #a0b4d0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-height: 40px;
+    line-height: 20px;
+  }
+
+  .btn {
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px 16px;
+    transition: background 0.15s, transform 0.1s;
+    white-space: nowrap;
+    color: #fff;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:active { transform: scale(0.96); }
+
+  .btn-open {
+    background: #e94560;
+    min-width: 72px;
+  }
+  .btn-open:hover { background: #d63850; }
+
+  /* Video container */
+  .video-container {
+    display: none;
+    margin-bottom: 16px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #000;
+  }
+  .video-container.show { display: block; }
+  .video-container video {
+    display: block;
+    width: 100%;
+    max-height: 300px;
+    border-radius: 10px;
+  }
+
+  /* Time display */
+  .time-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .time-current, .time-duration {
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    color: #a0b4d0;
+    min-width: 50px;
+  }
+  .time-duration { text-align: right; }
+
+  /* Progress slider */
+  .slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: #0f3460;
+    outline: none;
+    cursor: pointer;
+    margin-bottom: 20px;
+  }
+  .slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #e94560;
+    cursor: pointer;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .btn-ctrl {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    padding: 0;
+  }
+
+  .btn-play {
+    width: 60px;
+    height: 60px;
+    background: #e94560;
+    font-size: 24px;
+  }
+  .btn-play:hover { background: #d63850; }
+
+  .btn-skip {
+    background: #0f3460;
+    font-size: 13px;
+    font-weight: 700;
+    width: 52px;
+    height: 52px;
+  }
+  .btn-skip:hover { background: #1a4a80; }
+</style>
+</head>
+<body>
+
+<div class="player">
+  <div class="player-title">播放器</div>
+
+  <div class="file-area">
+    <div class="file-name" id="fileName">未选择文件</div>
+    <button class="btn btn-open" id="btnOpen">打开</button>
+    <input type="file" id="fileInput" accept="audio/*,video/*" hidden>
+  </div>
+
+  <div class="video-container" id="videoContainer">
+    <video id="videoElem" playsinline webkit-playsinline></video>
+  </div>
+
+  <div class="time-row">
+    <span class="time-current" id="timeCurrent">00:00</span>
+    <span class="time-duration" id="timeDuration">00:00</span>
+  </div>
+
+  <input type="range" class="slider" id="progressSlider" min="0" max="1000" value="0" step="1">
+
+  <div class="controls">
+    <button class="btn btn-ctrl btn-skip" id="btnBackward" title="后退10秒">−10s</button>
+    <button class="btn btn-ctrl btn-play" id="btnPlay" title="播放/暂停">▶</button>
+    <button class="btn btn-ctrl btn-skip" id="btnForward" title="前进10秒">+10s</button>
+  </div>
+</div>
+
+<audio id="audioElem"></audio>
+
+<script>
+  const fileInput = document.getElementById('fileInput');
+  const btnOpen = document.getElementById('btnOpen');
+  const fileName = document.getElementById('fileName');
+  const btnPlay = document.getElementById('btnPlay');
+  const btnForward = document.getElementById('btnForward');
+  const btnBackward = document.getElementById('btnBackward');
+  const progressSlider = document.getElementById('progressSlider');
+  const timeCurrent = document.getElementById('timeCurrent');
+  const timeDuration = document.getElementById('timeDuration');
+  const videoContainer = document.getElementById('videoContainer');
+  const videoElem = document.getElementById('videoElem');
+  const audioElem = document.getElementById('audioElem');
+
+  let media = null;
+  let isVideo = false;
+  let objectUrl = null;
+  let dragging = false;
+
+  function fmtTime(seconds) {
+    if (!isFinite(seconds) || seconds < 0) return '00:00';
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+
+  function setMedia(el) {
+    if (media) {
+      media.pause();
+      media.removeEventListener('timeupdate', onTimeUpdate);
+      media.removeEventListener('loadedmetadata', onLoaded);
+      media.removeEventListener('ended', onEnded);
+    }
+    media = el;
+    media.addEventListener('timeupdate', onTimeUpdate);
+    media.addEventListener('loadedmetadata', onLoaded);
+    media.addEventListener('ended', onEnded);
+  }
+
+  function onTimeUpdate() {
+    if (!media || !isFinite(media.duration)) return;
+    if (!dragging) {
+      progressSlider.value = (media.currentTime / media.duration) * 1000;
+    }
+    timeCurrent.textContent = fmtTime(media.currentTime);
+  }
+
+  function onLoaded() {
+    if (!media || !isFinite(media.duration)) return;
+    timeDuration.textContent = fmtTime(media.duration);
+    progressSlider.value = 0;
+    timeCurrent.textContent = '00:00';
+  }
+
+  function onEnded() {
+    btnPlay.textContent = '▶';
+  }
+
+  btnOpen.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = URL.createObjectURL(file);
+
+    const isVideoFile = file.type.startsWith('video/');
+    isVideo = isVideoFile;
+
+    if (isVideoFile) {
+      videoElem.src = objectUrl;
+      videoContainer.classList.add('show');
+      videoElem.style.display = 'block';
+      audioElem.src = '';
+      setMedia(videoElem);
+    } else {
+      videoElem.src = '';
+      videoContainer.classList.remove('show');
+      videoElem.style.display = 'none';
+      audioElem.src = objectUrl;
+      setMedia(audioElem);
+    }
+
+    fileName.textContent = file.name;
+    btnPlay.textContent = '▶';
+    progressSlider.value = 0;
+    timeCurrent.textContent = '00:00';
+    timeDuration.textContent = '00:00';
+  });
+
+  btnPlay.addEventListener('click', () => {
+    if (!media || !media.src) return;
+    if (media.paused) {
+      media.play().catch(() => {});
+      btnPlay.textContent = '⏸';
+    } else {
+      media.pause();
+      btnPlay.textContent = '▶';
+    }
+  });
+
+  btnForward.addEventListener('click', () => {
+    if (!media || !isFinite(media.duration)) return;
+    media.currentTime = Math.min(media.currentTime + 10, media.duration);
+  });
+
+  btnBackward.addEventListener('click', () => {
+    if (!media || !isFinite(media.duration)) return;
+    media.currentTime = Math.max(media.currentTime - 10, 0);
+  });
+
+  progressSlider.addEventListener('input', () => {
+    if (!media || !isFinite(media.duration)) return;
+    dragging = true;
+    media.currentTime = (progressSlider.value / 1000) * media.duration;
+    timeCurrent.textContent = fmtTime(media.currentTime);
+  });
+
+  progressSlider.addEventListener('change', () => {
+    dragging = false;
+  });
+
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+  }
+</script>
+
+</body>
+</html>
