@@ -1,7 +1,7 @@
 {
-  "name": "播放器",
-  "short_name": "播放器",
-  "description": "音视频媒体播放器",
+  "name": "プレーヤー",
+  "short_name": "プレーヤー",
+  "description": "音声・動画メディアプレーヤー",
   "start_url": ".",
   "display": "standalone",
   "orientation": "any",

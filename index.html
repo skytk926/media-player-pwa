@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
-<title>播放器</title>
+<title>プレーヤー</title>
 
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
@@ -13,7 +13,7 @@
 <!-- iOS -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="播放器">
+<meta name="apple-mobile-web-app-title" content="プレーヤー">
 <link rel="apple-touch-icon" href="icon-192.png">
 
 <style>
@@ -39,53 +39,57 @@
   }
 
   .player {
-    width: 100%;
-    max-width: 720px;
-    margin: 0 16px;
+    width: min(96%, 720px);
+    margin: 0 auto;
     background: #16213e;
-    border-radius: 16px;
-    padding: 24px 20px;
+    border-radius: clamp(12px, 2vw, 16px);
+    padding: clamp(16px, 3vw, 28px) clamp(12px, 2.5vw, 24px);
     box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+    max-height: 100vh;
+    max-height: -webkit-fill-available;
   }
 
   .player-title {
     text-align: center;
-    font-size: 12px;
+    font-size: clamp(10px, 1.5vw, 12px);
     color: #888;
     letter-spacing: 3px;
     text-transform: uppercase;
-    margin-bottom: 20px;
+    margin-bottom: clamp(10px, 1.5vw, 16px);
+    flex-shrink: 0;
   }
 
-  /* Open file */
   .file-area {
-    margin-bottom: 20px;
+    margin-bottom: clamp(8px, 1.2vw, 12px);
     display: flex;
-    gap: 10px;
+    gap: clamp(6px, 1.2vw, 10px);
     align-items: center;
+    flex-shrink: 0;
   }
 
   .file-name {
     flex: 1;
     background: #0f3460;
     border-radius: 8px;
-    padding: 10px 12px;
-    font-size: 13px;
+    padding: clamp(8px, 1.2vw, 10px) clamp(10px, 1.4vw, 12px);
+    font-size: clamp(11px, 1.6vw, 13px);
     color: #a0b4d0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    min-height: 40px;
-    line-height: 20px;
+    min-height: clamp(34px, 5vw, 42px);
+    line-height: 22px;
   }
 
   .btn {
     border: none;
     border-radius: 8px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: clamp(12px, 1.6vw, 14px);
     font-weight: 600;
-    padding: 10px 16px;
+    padding: clamp(8px, 1.2vw, 10px) clamp(14px, 2vw, 16px);
     transition: background 0.15s, transform 0.1s;
     white-space: nowrap;
     color: #fff;
@@ -95,24 +99,99 @@
 
   .btn-open {
     background: #e94560;
-    min-width: 72px;
+    min-width: clamp(60px, 9vw, 72px);
   }
   .btn-open:hover { background: #d63850; }
+
+  /* Playlist */
+  .playlist {
+    list-style: none;
+    margin-bottom: clamp(8px, 1.2vw, 12px);
+    max-height: clamp(100px, 22vh, 200px);
+    overflow-y: auto;
+    border-radius: 8px;
+    background: #0a1628;
+    flex-shrink: 0;
+  }
+  .playlist:empty { display: none; }
+
+  .playlist-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: clamp(6px, 1vw, 9px) 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #16213e;
+    font-size: clamp(11px, 1.4vw, 13px);
+    transition: background 0.15s;
+  }
+  .playlist-item:last-child { border-bottom: none; }
+  .playlist-item:hover { background: #16213e; }
+  .playlist-item.active {
+    background: #0f3460;
+    color: #e94560;
+    font-weight: 600;
+  }
+
+  .playlist-index {
+    color: #888;
+    font-size: clamp(10px, 1.2vw, 11px);
+    min-width: clamp(16px, 2.5vw, 20px);
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .playlist-item.active .playlist-index { color: #e94560; }
+
+  .playlist-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .playlist-del {
+    flex-shrink: 0;
+    width: clamp(22px, 3.5vw, 28px);
+    height: clamp(22px, 3.5vw, 28px);
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #666;
+    font-size: clamp(14px, 2vw, 16px);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s, background 0.15s;
+    line-height: 1;
+  }
+  .playlist-del:hover { color: #e94560; background: #1a1a2e; }
 
   /* Video container */
   .video-container {
     display: none;
-    margin-bottom: 16px;
+    margin-bottom: clamp(8px, 1.2vw, 12px);
     border-radius: 10px;
     overflow: hidden;
     background: #000;
+    flex-shrink: 0;
   }
   .video-container.show { display: block; }
   .video-container video {
     display: block;
     width: 100%;
-    max-height: 300px;
+    max-height: clamp(120px, 30vw, 300px);
     border-radius: 10px;
+  }
+
+  /* Subtitle cue styling */
+  video::cue {
+    color: #fff;
+    font-size: clamp(14px, 2vw, 18px);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    text-shadow: 0 0 4px #000, 0 0 4px #000, 1px 1px 2px #000;
+    background: rgba(0,0,0,0.6);
+    line-height: 1.4;
   }
 
   /* Time display */
@@ -120,14 +199,15 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
+    margin-bottom: clamp(4px, 0.6vw, 6px);
+    flex-shrink: 0;
   }
 
   .time-current, .time-duration {
-    font-size: 14px;
+    font-size: clamp(12px, 1.6vw, 14px);
     font-variant-numeric: tabular-nums;
     color: #a0b4d0;
-    min-width: 50px;
+    min-width: clamp(44px, 6vw, 54px);
   }
   .time-duration { text-align: right; }
 
@@ -136,17 +216,18 @@
     -webkit-appearance: none;
     appearance: none;
     width: 100%;
-    height: 6px;
+    height: clamp(4px, 0.7vw, 6px);
     border-radius: 3px;
     background: #0f3460;
     outline: none;
     cursor: pointer;
-    margin-bottom: 20px;
+    margin-bottom: clamp(10px, 1.5vw, 14px);
+    flex-shrink: 0;
   }
   .slider::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 18px;
-    height: 18px;
+    width: clamp(16px, 2.5vw, 20px);
+    height: clamp(16px, 2.5vw, 20px);
     border-radius: 50%;
     background: #e94560;
     cursor: pointer;
@@ -154,57 +235,173 @@
     box-shadow: 0 2px 6px rgba(0,0,0,0.4);
   }
 
-  /* Controls */
+  /* Subtitle bar */
+  .subtitle-bar {
+    display: flex;
+    align-items: center;
+    gap: clamp(6px, 1vw, 10px);
+    margin-bottom: clamp(8px, 1.2vw, 12px);
+    flex-shrink: 0;
+  }
+  .subtitle-bar.hidden { display: none; }
+
+  .btn-sub {
+    height: clamp(28px, 4vw, 34px);
+    padding: 0 clamp(10px, 1.4vw, 14px);
+    border-radius: 16px;
+    border: none;
+    cursor: pointer;
+    font-size: clamp(11px, 1.4vw, 12px);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: background 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    background: #0f3460;
+    color: #a0b4d0;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .btn-sub:hover { color: #fff; }
+  .btn-sub.active { background: #1a4a80; color: #e94560; }
+
+  .btn-generate {
+    background: #0f3460;
+    color: #e94560;
+    flex-shrink: 0;
+  }
+  .btn-generate:hover { background: #1a4a80; }
+  .btn-generate.loading {
+    background: #1a4a80;
+    color: #ffd700;
+    pointer-events: none;
+  }
+  .btn-generate.hidden-btn { display: none; }
+
+  .sub-select {
+    flex: 1;
+    background: #0f3460;
+    border: none;
+    border-radius: 8px;
+    color: #e0e0e0;
+    font-size: clamp(11px, 1.4vw, 12px);
+    padding: clamp(6px, 0.8vw, 8px) 8px;
+    cursor: pointer;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a0b4d0' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    padding-right: 28px;
+  }
+  .sub-select option {
+    background: #16213e;
+    color: #e0e0e0;
+  }
+
+  /* Bottom row: loop + controls */
+  .bottom-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(8px, 1.5vw, 14px);
+    flex-shrink: 0;
+  }
+
+  .btn-loop {
+    height: clamp(34px, 5vw, 40px);
+    padding: 0 clamp(10px, 1.5vw, 14px);
+    border-radius: 20px;
+    border: none;
+    cursor: pointer;
+    font-size: clamp(11px, 1.5vw, 13px);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: background 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    background: #0f3460;
+    color: #666;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .btn-loop.loop-one,
+  .btn-loop.loop-all {
+    background: #1a4a80;
+    color: #e94560;
+  }
+
   .controls {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 16px;
+    gap: clamp(10px, 2vw, 18px);
   }
 
   .btn-ctrl {
-    width: 46px;
-    height: 46px;
+    width: clamp(40px, 7vw, 50px);
+    height: clamp(40px, 7vw, 50px);
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 17px;
+    font-size: clamp(15px, 2.2vw, 18px);
     padding: 0;
   }
 
   .btn-play {
-    width: 60px;
-    height: 60px;
+    width: clamp(52px, 9vw, 64px);
+    height: clamp(52px, 9vw, 64px);
     background: #e94560;
-    font-size: 24px;
+    font-size: clamp(20px, 3vw, 26px);
   }
   .btn-play:hover { background: #d63850; }
 
   .btn-skip {
     background: #0f3460;
-    font-size: 13px;
+    font-size: clamp(12px, 1.6vw, 14px);
     font-weight: 700;
-    width: 52px;
-    height: 52px;
   }
   .btn-skip:hover { background: #1a4a80; }
+
+  .sub-overlay {
+    text-align: center;
+    padding: clamp(8px, 1.5vw, 14px) clamp(12px, 2vw, 20px);
+    margin: 8px 0;
+    min-height: clamp(36px, 5vw, 48px);
+    line-height: 1.5;
+    font-size: clamp(14px, 2vw, 18px);
+    color: #fff;
+    background: rgba(0, 0, 0, 0.65);
+    border-radius: 8px;
+    white-space: pre-line;
+  }
+  .sub-overlay.hidden { display: none; }
 </style>
 </head>
 <body>
 
 <div class="player">
-  <div class="player-title">播放器</div>
+  <div class="player-title">プレーヤー</div>
 
   <div class="file-area">
-    <div class="file-name" id="fileName">未选择文件</div>
-    <button class="btn btn-open" id="btnOpen">打开</button>
-    <input type="file" id="fileInput" accept="audio/*,video/*,.wav,.mp3,.mp4,.m4a,.aac,.flac,.ogg,.webm,.mov,.mkv,.avi" hidden>
+    <div class="file-name" id="fileName">ファイル未選択</div>
+    <button class="btn btn-open" id="btnOpen">開く</button>
+    <input type="file" id="fileInput" accept="audio/*,video/*,.wav,.mp3,.mp4,.m4a,.aac,.flac,.ogg,.webm,.mov,.mkv,.avi" multiple hidden>
   </div>
+
+  <ul class="playlist" id="playlist"></ul>
 
   <div class="video-container" id="videoContainer">
     <video id="videoElem" playsinline webkit-playsinline></video>
   </div>
+
+  <div class="sub-overlay hidden" id="subOverlay"></div>
 
   <div class="time-row">
     <span class="time-current" id="timeCurrent">00:00</span>
@@ -213,14 +410,33 @@
 
   <input type="range" class="slider" id="progressSlider" min="0" max="1000" value="0" step="1">
 
-  <div class="controls">
-    <button class="btn btn-ctrl btn-skip" id="btnBackward" title="后退10秒">−10s</button>
-    <button class="btn btn-ctrl btn-play" id="btnPlay" title="播放/暂停">▶</button>
-    <button class="btn btn-ctrl btn-skip" id="btnForward" title="前进10秒">+10s</button>
+  <div class="subtitle-bar hidden" id="subtitleBar">
+    <button class="btn-sub" id="btnSub" title="字幕ファイルを読込">字幕</button>
+    <input type="file" id="subFileInput" accept=".srt,.vtt,.ass,.ssa" hidden>
+    <select class="sub-select" id="subSelect"></select>
+    <button class="btn-sub btn-generate" id="btnGenerate" title="音声認識で字幕を生成">字幕生成</button>
+  </div>
+
+  <div class="bottom-row">
+    <button class="btn-loop" id="btnLoop" title="リピートモード">🔁</button>
+    <div class="controls">
+      <button class="btn btn-ctrl btn-skip" id="btnBackward" title="10秒戻る">−10s</button>
+      <button class="btn btn-ctrl btn-play" id="btnPlay" title="再生/停止">▶</button>
+      <button class="btn btn-ctrl btn-skip" id="btnForward" title="10秒進む">+10s</button>
+    </div>
   </div>
 </div>
 
 <audio id="audioElem"></audio>
+
+<script src="https://cdn.jsdelivr.net/npm/mp4box@0.5.3/dist/mp4box.all.min.js"></script>
+<script type="importmap">
+{ "imports": { "browser-whisper": "https://esm.sh/browser-whisper@1.0.2" } }
+</script>
+<script type="module">
+import { BrowserWhisper } from 'browser-whisper';
+window._bw = { BrowserWhisper };
+</script>
 
 <script>
   const fileInput = document.getElementById('fileInput');
@@ -235,11 +451,47 @@
   const videoContainer = document.getElementById('videoContainer');
   const videoElem = document.getElementById('videoElem');
   const audioElem = document.getElementById('audioElem');
+  const playlistEl = document.getElementById('playlist');
+  const btnLoop = document.getElementById('btnLoop');
+  const subtitleBar = document.getElementById('subtitleBar');
+  const btnSub = document.getElementById('btnSub');
+  const subFileInput = document.getElementById('subFileInput');
+  const subSelect = document.getElementById('subSelect');
+  const btnGenerate = document.getElementById('btnGenerate');
+  const subOverlay = document.getElementById('subOverlay');
 
+  const playlist = [];
+  let currentIndex = -1;
   let media = null;
   let isVideo = false;
-  let objectUrl = null;
   let dragging = false;
+
+  // 0=none 1=one 2=all
+  let loopMode = 0;
+  const loopLabels = ['繰り返しオフ', '1曲リピート', '全曲リピート'];
+  const loopIcons = ['🔁', '🔂', '🔁'];
+
+  // Subtitle state
+  const subTracks = []; // { label, language, blobUrl, embedded }
+  let subBlobUrls = [];
+
+  // Whisper state
+  let bwInstance = null;
+  let bwRunning = false;
+  let generatedSubs = null; // { vtt, label } for current file
+
+  function updateLoopBtn() {
+    btnLoop.textContent = loopIcons[loopMode] + ' ' + loopLabels[loopMode];
+    btnLoop.title = loopLabels[loopMode];
+    btnLoop.className = 'btn-loop';
+    if (loopMode === 1) btnLoop.classList.add('loop-one');
+    if (loopMode === 2) btnLoop.classList.add('loop-all');
+  }
+
+  btnLoop.addEventListener('click', () => {
+    loopMode = (loopMode + 1) % 3;
+    updateLoopBtn();
+  });
 
   function fmtTime(seconds) {
     if (!isFinite(seconds) || seconds < 0) return '00:00';
@@ -267,6 +519,23 @@
       progressSlider.value = (media.currentTime / media.duration) * 1000;
     }
     timeCurrent.textContent = fmtTime(media.currentTime);
+
+    // Audio subtitle overlay: manually find active cue via parsed VTT
+    if (!isVideo && subTracks.length > 0) {
+      const t = subTracks.find(s => s.trackEl && s.trackEl.mode === 'showing');
+      if (t && t._cues) {
+        const ct = media.currentTime;
+        const cue = t._cues.find(c => ct >= c.start && ct < c.end);
+        if (cue) {
+          subOverlay.textContent = cue.text;
+          subOverlay.classList.remove('hidden');
+        } else {
+          subOverlay.classList.add('hidden');
+        }
+      } else {
+        subOverlay.classList.add('hidden');
+      }
+    }
   }
 
   function onLoaded() {
@@ -277,23 +546,552 @@
   }
 
   function onEnded() {
+    if (loopMode === 1) {
+      media.currentTime = 0;
+      media.play().catch(() => {});
+      return;
+    }
+    if (loopMode === 2 && playlist.length > 1) {
+      currentIndex = (currentIndex + 1) % playlist.length;
+      loadFile(currentIndex);
+      media.play().catch(() => {});
+      return;
+    }
     btnPlay.textContent = '▶';
   }
 
-  btnOpen.addEventListener('click', () => fileInput.click());
+  // ── Subtitle: SRT → WebVTT ──
+  function srtToVtt(text) {
+    let vtt = 'WEBVTT\n\n';
+    const blocks = text.replace(/\r\n/g, '\n').split(/\n\n+/);
+    blocks.forEach((block, i) => {
+      const lines = block.trim().split('\n');
+      if (lines.length < 3) return;
+      // Skip index line
+      const timeMatch = lines[1] && lines[1].match(/([\d:,]+)\s*-->\s*([\d:,]+)/);
+      if (!timeMatch) return;
+      const body = lines.slice(2).join('\n');
+      vtt += (i + 1) + '\n';
+      vtt += timeMatch[1].replace(/,/g, '.') + ' --> ' + timeMatch[2].replace(/,/g, '.') + '\n';
+      vtt += body + '\n\n';
+    });
+    return vtt;
+  }
 
-  fileInput.addEventListener('change', () => {
-    const file = fileInput.files[0];
+  // ── Subtitle: ASS/SSA → WebVTT (simplified) ──
+  function assToVtt(text) {
+    let vtt = 'WEBVTT\n\n';
+    const lines = text.replace(/\r\n/g, '\n').split('\n');
+    let inEvents = false;
+    let i = 0;
+    lines.forEach((line) => {
+      if (/^\[Events\]/i.test(line)) { inEvents = true; return; }
+      if (!inEvents || !/^Dialogue:/i.test(line)) return;
+      const parts = line.slice(line.indexOf(':') + 1).split(',');
+      if (parts.length < 9) return;
+      // Remove {…} override tags
+      const raw = parts.slice(9).join(',');
+      const body = raw.replace(/\{[^}]*\}/g, '').replace(/\\N/g, '\n').replace(/\\n/g, '\n').trim();
+      if (!body) return;
+      const start = parts[1].trim().replace(/\.(\d)$/, '.$10').replace(/\.(\d\d)$/, '.$10');
+      const end = parts[2].trim().replace(/\.(\d)$/, '.$10').replace(/\.(\d\d)$/, '.$10');
+      i++;
+      vtt += i + '\n';
+      vtt += start + ' --> ' + end + '\n';
+      vtt += body + '\n\n';
+    });
+    return i > 0 ? vtt : '';
+  }
+
+  // ── Parse WebVTT cues for manual overlay (audio files) ──
+  function parseVttCues(vttText) {
+    const cues = [];
+    const lines = vttText.split('\n');
+    let i = 0;
+    while (i < lines.length && !lines[i].includes('-->')) i++;
+    while (i < lines.length) {
+      const m = lines[i].trim().match(
+        /^(\d{2,}):(\d{2}):(\d{2})[.,](\d{3})\s*-->\s*(\d{2,}):(\d{2}):(\d{2})[.,](\d{3})/
+      );
+      if (m) {
+        const start = parseInt(m[1]) * 3600 + parseInt(m[2]) * 60 + parseInt(m[3]) + parseInt(m[4]) / 1000;
+        const end = parseInt(m[5]) * 3600 + parseInt(m[6]) * 60 + parseInt(m[7]) + parseInt(m[8]) / 1000;
+        let text = '';
+        i++;
+        while (i < lines.length && lines[i].trim() !== '' && !lines[i].includes('-->')) {
+          if (text) text += '\n';
+          text += lines[i].trim();
+          i++;
+        }
+        if (text) cues.push({ start, end, text });
+      } else {
+        i++;
+      }
+    }
+    return cues;
+  }
+
+  // ── Add a subtitle track ──
+  function addSubTrack(label, language, vttText) {
+    const cues = !isVideo ? parseVttCues(vttText) : null;
+
+    const blob = new Blob([vttText], { type: 'text/vtt' });
+    const url = URL.createObjectURL(blob);
+    subBlobUrls.push(url);
+
+    const track = document.createElement('track');
+    track.kind = 'subtitles';
+    track.label = label;
+    track.srclang = language || '';
+    track.src = url;
+    const targetEl = isVideo ? videoElem : audioElem;
+    targetEl.appendChild(track);
+    track.mode = subTracks.length === 0 ? 'showing' : 'hidden';
+
+    subTracks.push({ label, language, blobUrl: url, embedded: true, trackEl: track, _cues: cues });
+    updateSubUI();
+  }
+
+  // ── Update subtitle selector ──
+  function updateSubUI() {
+    // Always show bar when a file is loaded (for generate button)
+    if (currentIndex < 0) {
+      subtitleBar.classList.add('hidden');
+      btnGenerate.classList.add('hidden-btn');
+      return;
+    }
+    subtitleBar.classList.remove('hidden');
+
+    // Generate button: show only when no tracks and not yet generated
+    if (subTracks.length === 0 && !generatedSubs) {
+      btnGenerate.classList.remove('hidden-btn');
+      btnSub.style.display = 'none';
+      subSelect.style.display = 'none';
+      return;
+    }
+    btnGenerate.classList.add('hidden-btn');
+    btnSub.style.display = '';
+    subSelect.style.display = '';
+
+    subSelect.innerHTML = '';
+
+    const offOpt = document.createElement('option');
+    offOpt.value = '-1';
+    offOpt.textContent = '字幕オフ';
+    subSelect.appendChild(offOpt);
+
+    subTracks.forEach((t, i) => {
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = t.label;
+      if (t.trackEl && t.trackEl.mode === 'showing') {
+        opt.selected = true;
+      }
+      subSelect.appendChild(opt);
+    });
+
+    // Check if any track is showing
+    const active = subTracks.some(t => t.trackEl && t.trackEl.mode === 'showing');
+    if (active) {
+      btnSub.classList.add('active');
+      btnSub.textContent = '字幕 ON';
+    } else {
+      btnSub.classList.remove('active');
+      btnSub.textContent = '字幕';
+    }
+    // Set select to current active
+    const activeIdx = subTracks.findIndex(t => t.trackEl && t.trackEl.mode === 'showing');
+    if (activeIdx >= 0) subSelect.value = String(activeIdx);
+    else subSelect.value = '-1';
+  }
+
+  // ── Switch subtitle track ──
+  subSelect.addEventListener('change', () => {
+    const idx = parseInt(subSelect.value);
+    subTracks.forEach((t, i) => {
+      if (t.trackEl) {
+        t.trackEl.mode = (i === idx) ? 'showing' : 'hidden';
+      }
+    });
+    if (!isVideo && idx < 0) {
+      subOverlay.classList.add('hidden');
+      subOverlay.textContent = '';
+    }
+    updateSubUI();
+  });
+
+  // ── Whisper auto-transcription (browser-whisper, WebGPU/WASM) ──
+  function subDb() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open('SubCache', 1);
+      req.onupgradeneeded = () => { req.result.createObjectStore('subs'); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function fileKey(item) {
+    return item.name + '|' + item.file.size + '|' + item.file.lastModified;
+  }
+
+  async function getCachedSubs(item) {
+    try {
+      const db = await subDb();
+      return new Promise((resolve) => {
+        const tx = db.transaction('subs', 'readonly');
+        const req = tx.objectStore('subs').get(fileKey(item));
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      });
+    } catch { return null; }
+  }
+
+  async function cacheSubs(item, vtt) {
+    try {
+      const db = await subDb();
+      const tx = db.transaction('subs', 'readwrite');
+      tx.objectStore('subs').put(vtt, fileKey(item));
+    } catch { /* ignore */ }
+  }
+
+  async function getBW() {
+    if (bwInstance) return bwInstance;
+    if (!window._bw || !window._bw.BrowserWhisper) {
+      showError('BW未読込');
+      return null;
+    }
+    bwInstance = new window._bw.BrowserWhisper({ model: 'whisper-tiny', language: 'ja' });
+    return bwInstance;
+  }
+
+  function segmentsToVtt(segments) {
+    if (!segments || segments.length === 0) return '';
+    let vtt = 'WEBVTT\n\n';
+    segments.forEach((seg, i) => {
+      const pad2 = (n) => String(Math.floor(n)).padStart(2, '0');
+      const pad3 = (n) => String(Math.round(n)).padStart(3, '0');
+
+      const sh = pad2(seg.timeStart / 3600000);
+      const sm = pad2((seg.timeStart % 3600000) / 60000);
+      const ss = pad2((seg.timeStart % 60000) / 1000);
+      const sms = pad3(seg.timeStart % 1000);
+
+      const eh = pad2(seg.timeEnd / 3600000);
+      const em = pad2((seg.timeEnd % 3600000) / 60000);
+      const es = pad2((seg.timeEnd % 60000) / 1000);
+      const ems = pad3(seg.timeEnd % 1000);
+
+      vtt += (i + 1) + '\n';
+      vtt += sh + ':' + sm + ':' + ss + '.' + sms + ' --> ';
+      vtt += eh + ':' + em + ':' + es + '.' + ems + '\n';
+      vtt += (seg.text || '').trim() + '\n\n';
+    });
+    return vtt;
+  }
+
+  async function startTranscription() {
+    if (bwRunning) return;
+    const item = playlist[currentIndex];
+    if (!item) return;
+
+    const bw = await getBW();
+    if (!bw) return;
+
+    bwRunning = true;
+    btnGenerate.textContent = '準備中...';
+    btnGenerate.classList.add('loading');
+
+    const segments = [];
+    const startTime = Date.now();
+
+    try {
+      const stream = bw.transcribe(item.file, {
+        onProgress: (evt) => {
+          if (evt.stage === 'loading') {
+            btnGenerate.textContent = 'モデル ' + Math.round(evt.progress * 100) + '%';
+          } else if (evt.stage === 'decoding') {
+            btnGenerate.textContent = '音声変換中...';
+          } else if (evt.stage === 'transcribing') {
+            btnGenerate.textContent = '認識中 ' + Math.round(evt.progress * 100) + '%';
+          }
+        }
+      });
+
+      for await (const seg of stream) {
+        segments.push({
+          timeStart: seg.start * 1000,
+          timeEnd: seg.end * 1000,
+          text: seg.text
+        });
+      }
+    } catch (err) {
+      console.error('transcribe error:', err);
+      showError('認識失敗');
+      bwRunning = false;
+      return;
+    }
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log('Done in ' + elapsed + 's, ' + segments.length + ' segments');
+
+    if (segments.length === 0) {
+      btnGenerate.textContent = '字幕なし';
+      btnGenerate.classList.remove('loading');
+      setTimeout(() => { btnGenerate.textContent = '字幕生成'; }, 2000);
+      bwRunning = false;
+      return;
+    }
+
+    const vtt = segmentsToVtt(segments);
+    cacheSubs(item, vtt);
+    generatedSubs = { vtt, label: '[自動] 音声認識' };
+    addSubTrack(generatedSubs.label, 'ja', vtt);
+    btnGenerate.classList.remove('loading');
+    btnGenerate.classList.add('hidden-btn');
+    bwRunning = false;
+  }
+
+  function showError(msg) {
+    console.error(msg);
+    btnGenerate.textContent = msg;
+    btnGenerate.classList.add('loading');
+    setTimeout(() => {
+      btnGenerate.classList.remove('loading');
+      btnGenerate.textContent = '字幕生成';
+    }, 3000);
+  }
+
+  btnGenerate.addEventListener('click', () => {
+    if (!window._bw || !window._bw.BrowserWhisper) {
+      showError('BW未読込');
+      return;
+    }
+    startTranscription();
+  });
+
+  // ── Clear all subtitle tracks ──
+  function clearSubTracks() {
+    subTracks.forEach(t => {
+      if (t.trackEl) {
+        t.trackEl.mode = 'hidden';
+        t.trackEl.remove();
+      }
+    });
+    subBlobUrls.forEach(u => URL.revokeObjectURL(u));
+    subBlobUrls.length = 0;
+    subTracks.length = 0;
+    generatedSubs = null;
+    btnGenerate.classList.remove('loading');
+    btnGenerate.textContent = '字幕生成';
+    btnSub.style.display = '';
+    subSelect.style.display = '';
+    subtitleBar.classList.add('hidden');
+    btnSub.classList.remove('active');
+    btnSub.textContent = '字幕';
+    subOverlay.classList.add('hidden');
+    subOverlay.textContent = '';
+  }
+
+  // ── Extract MP4 embedded subtitles ──
+  function extractMp4Subs(file) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const buffer = e.target.result;
+        const mp4File = MP4Box.createFile();
+        let resolved = false;
+
+        mp4File.onReady = (info) => {
+          const textTracks = info.tracks.filter(t => t.type === 'Text');
+          if (textTracks.length === 0) {
+            resolved = true;
+            resolve([]);
+            return;
+          }
+
+          const collected = {};
+          textTracks.forEach(t => { collected[t.id] = []; });
+
+          mp4File.onSamples = (id, user, samples) => {
+            if (collected[id]) {
+              collected[id].push(...samples);
+            }
+          };
+
+          textTracks.forEach(t => {
+            mp4File.setExtractionOptions(t.id, null, { nbSamples: 2000 });
+          });
+          mp4File.start();
+
+          setTimeout(() => {
+            if (resolved) return;
+            resolved = true;
+
+            const results = textTracks.map(t => {
+              const samples = collected[t.id] || [];
+              let vtt = 'WEBVTT\n\n';
+              let cueIdx = 0;
+
+              samples.forEach((s, si) => {
+                if (!s.data || s.data.byteLength < 2) return;
+                const data = new Uint8Array(s.data);
+                let offset = 0;
+
+                while (offset + 2 <= data.length) {
+                  const textLen = (data[offset] << 8) | data[offset + 1];
+                  offset += 2;
+                  if (textLen === 0 || offset + textLen > data.length) break;
+
+                  const textBytes = data.slice(offset, offset + textLen);
+                  const text = new TextDecoder('utf-8').decode(textBytes);
+                  offset += textLen;
+
+                  if (!text.trim()) continue;
+
+                  const startSec = s.cts / s.timescale;
+                  const durSec = s.duration / s.timescale;
+                  const endSec = startSec + durSec;
+
+                  const h0 = Math.floor(startSec / 3600);
+                  const m0 = Math.floor((startSec % 3600) / 60);
+                  const s0 = Math.floor(startSec % 60);
+                  const ms0 = Math.round((startSec - Math.floor(startSec)) * 1000);
+
+                  const h1 = Math.floor(endSec / 3600);
+                  const m1 = Math.floor((endSec % 3600) / 60);
+                  const s1 = Math.floor(endSec % 60);
+                  const ms1 = Math.round((endSec - Math.floor(endSec)) * 1000);
+
+                  cueIdx++;
+                  vtt += cueIdx + '\n';
+                  vtt += String(h0).padStart(2,'0') + ':' + String(m0).padStart(2,'0') + ':' + String(s0).padStart(2,'0') + '.' + String(ms0).padStart(3,'0');
+                  vtt += ' --> ';
+                  vtt += String(h1).padStart(2,'0') + ':' + String(m1).padStart(2,'0') + ':' + String(s1).padStart(2,'0') + '.' + String(ms1).padStart(3,'0');
+                  vtt += '\n' + text + '\n\n';
+                }
+              });
+
+              const lang = t.language || '';
+              const label = lang ? lang : ('字幕トラック ' + (results.length + 1));
+              return { label, language: lang, vtt };
+            });
+
+            resolve(results.filter(r => r.vtt !== 'WEBVTT\n\n'));
+          }, 200);
+        };
+
+        mp4File.appendBuffer(buffer);
+        mp4File.flush();
+      };
+      reader.onerror = () => resolve([]);
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  // ── Parse external subtitle file ──
+  function parseSubFile(file) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target.result;
+        const ext = file.name.split('.').pop().toLowerCase();
+        let vtt;
+        if (ext === 'vtt') {
+          vtt = text.startsWith('WEBVTT') ? text : 'WEBVTT\n\n' + text;
+        } else if (ext === 'srt') {
+          vtt = srtToVtt(text);
+        } else if (ext === 'ass' || ext === 'ssa') {
+          vtt = assToVtt(text);
+        }
+        if (vtt && vtt !== 'WEBVTT\n\n') {
+          resolve({ label: file.name, language: '', vtt });
+        } else {
+          resolve(null);
+        }
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsText(file);
+    });
+  }
+
+  // ── External subtitle file selection ──
+  btnSub.addEventListener('click', () => {
+    if (subTracks.length === 0) {
+      subFileInput.click();
+    } else {
+      const anyActive = subTracks.some(t => t.trackEl && t.trackEl.mode === 'showing');
+      if (anyActive) {
+        subTracks.forEach(t => { if (t.trackEl) t.trackEl.mode = 'hidden'; });
+      } else {
+        if (subTracks[0].trackEl) subTracks[0].trackEl.mode = 'showing';
+      }
+      updateSubUI();
+    }
+  });
+
+  subFileInput.addEventListener('change', async () => {
+    const file = subFileInput.files[0];
     if (!file) return;
+    const result = await parseSubFile(file);
+    if (result) {
+      addSubTrack(result.label, result.language, result.vtt);
+    }
+    subFileInput.value = '';
+  });
 
-    if (objectUrl) URL.revokeObjectURL(objectUrl);
-    objectUrl = URL.createObjectURL(file);
+  // ── Render playlist ──
+  function renderPlaylist() {
+    playlistEl.innerHTML = '';
+    playlist.forEach((item, i) => {
+      const li = document.createElement('li');
+      li.className = 'playlist-item' + (i === currentIndex ? ' active' : '');
 
-    const isVideoFile = file.type.startsWith('video/');
+      const idx = document.createElement('span');
+      idx.className = 'playlist-index';
+      idx.textContent = i + 1;
+
+      const name = document.createElement('span');
+      name.className = 'playlist-name';
+      name.textContent = item.name;
+
+      const del = document.createElement('button');
+      del.className = 'playlist-del';
+      del.textContent = '×';
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeFile(i);
+      });
+
+      li.appendChild(idx);
+      li.appendChild(name);
+      li.appendChild(del);
+
+      li.addEventListener('click', () => {
+        if (i === currentIndex) return;
+        currentIndex = i;
+        loadFile(i);
+        renderPlaylist();
+        media.play().catch(() => {});
+        btnPlay.textContent = '⏸';
+      });
+
+      playlistEl.appendChild(li);
+    });
+  }
+
+  function loadFile(index) {
+    const item = playlist[index];
+    if (!item) return;
+
+    if (media) media.pause();
+    clearSubTracks();
+
+    const isVideoFile = item.file.type.startsWith('video/') ||
+      /\.(mp4|mov|mkv|avi|webm)$/i.test(item.name);
     isVideo = isVideoFile;
 
     if (isVideoFile) {
-      videoElem.src = objectUrl;
+      videoElem.src = item.objectUrl;
       videoContainer.classList.add('show');
       videoElem.style.display = 'block';
       audioElem.src = '';
@@ -302,19 +1100,126 @@
       videoElem.src = '';
       videoContainer.classList.remove('show');
       videoElem.style.display = 'none';
-      audioElem.src = objectUrl;
+      audioElem.src = item.objectUrl;
       setMedia(audioElem);
     }
 
-    fileName.textContent = file.name;
-    btnPlay.textContent = '▶';
+    fileName.textContent = item.name;
     progressSlider.value = 0;
     timeCurrent.textContent = '00:00';
     timeDuration.textContent = '00:00';
+
+    // Try to extract embedded subtitles from MP4 files
+    if (isVideoFile && /\.(mp4|m4v|mov)$/i.test(item.name)) {
+      extractMp4Subs(item.file).then(async (subs) => {
+        if (currentIndex !== index) return;
+        subs.forEach(s => {
+          addSubTrack(s.label, s.language, s.vtt);
+        });
+        if (subs.length === 0) {
+          const cached = await getCachedSubs(item);
+          if (cached) {
+            generatedSubs = { vtt: cached, label: '[自動] 音声認識' };
+            addSubTrack(generatedSubs.label, 'ja', cached);
+          } else {
+            updateSubUI();
+          }
+        }
+      });
+    } else {
+      getCachedSubs(item).then((cached) => {
+        if (currentIndex !== index) return;
+        if (cached) {
+          generatedSubs = { vtt: cached, label: '[自動] 音声認識' };
+          addSubTrack(generatedSubs.label, 'ja', cached);
+        } else {
+          updateSubUI();
+        }
+      });
+    }
+  }
+
+  function updateFileCount() {
+    if (playlist.length === 0) {
+      fileName.textContent = 'ファイル未選択';
+    } else {
+      fileName.textContent = playlist.length + '件選択中';
+    }
+  }
+
+  function removeFile(index) {
+    const removingCurrent = index === currentIndex;
+
+    URL.revokeObjectURL(playlist[index].objectUrl);
+    playlist.splice(index, 1);
+
+    if (playlist.length === 0) {
+      currentIndex = -1;
+      if (media) {
+        media.pause();
+        media.src = '';
+      }
+      videoContainer.classList.remove('show');
+      videoElem.style.display = 'none';
+      videoElem.src = '';
+      audioElem.src = '';
+      progressSlider.value = 0;
+      timeCurrent.textContent = '00:00';
+      timeDuration.textContent = '00:00';
+      btnPlay.textContent = '▶';
+      clearSubTracks();
+      updateFileCount();
+      renderPlaylist();
+      updateSubUI();
+      return;
+    }
+
+    if (removingCurrent) {
+      if (currentIndex >= playlist.length) currentIndex = playlist.length - 1;
+    } else if (index < currentIndex) {
+      currentIndex--;
+    }
+
+    if (removingCurrent) {
+      loadFile(currentIndex);
+    }
+
+    updateFileCount();
+    renderPlaylist();
+  }
+
+  btnOpen.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', () => {
+    const files = Array.from(fileInput.files);
+    if (files.length === 0) return;
+
+    files.forEach((file) => {
+      const objectUrl = URL.createObjectURL(file);
+      playlist.push({ file, objectUrl, name: file.name });
+    });
+
+    if (currentIndex === -1) {
+      currentIndex = playlist.length - files.length;
+      loadFile(currentIndex);
+    }
+
+    updateFileCount();
+    renderPlaylist();
+    fileInput.value = '';
   });
 
   btnPlay.addEventListener('click', () => {
-    if (!media || !media.src) return;
+    if (!media || !media.src) {
+      if (playlist.length > 0) {
+        currentIndex = 0;
+        loadFile(0);
+        renderPlaylist();
+        media.play().catch(() => {});
+        btnPlay.textContent = '⏸';
+      }
+      return;
+    }
     if (media.paused) {
       media.play().catch(() => {});
       btnPlay.textContent = '⏸';
@@ -345,10 +1250,11 @@
     dragging = false;
   });
 
-  // Register service worker
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js');
   }
+
+  updateLoopBtn();
 </script>
 
 </body>
