@@ -119,11 +119,22 @@ async def transcribe(request: Request):
 
 @app.get("/health")
 async def health():
+    import socket
+    ips = []
+    try:
+        hostname = socket.gethostname()
+        for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
+            ip = info[4][0]
+            if not ip.startswith("127.") and ip not in ips:
+                ips.append(ip)
+    except Exception:
+        pass
     return {
         "status": "ok",
         "model_loaded": model is not None,
         "model": MODEL_NAME,
         "engine": "faster-whisper (CTranslate2 int8)",
+        "ips": ips,
     }
 
 

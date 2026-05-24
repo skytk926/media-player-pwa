@@ -291,6 +291,54 @@
   .server-dot.offline { background: #f44336; }
   .server-dot.checking { background: #ff9800; }
 
+  .server-url-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: clamp(8px, 1.2vw, 12px);
+    flex-shrink: 0;
+  }
+  .server-url-row.hidden { display: none; }
+  .server-url-input {
+    flex: 1;
+    background: #0f3460;
+    border: 1px solid #1a4a80;
+    border-radius: 6px;
+    padding: clamp(4px, 0.8vw, 6px) 8px;
+    font-size: clamp(10px, 1.3vw, 12px);
+    color: #a0b4d0;
+    outline: none;
+    font-family: monospace;
+  }
+  .server-url-input:focus { border-color: #4caf50; }
+  .server-url-input::placeholder { color: #555; }
+  .btn-server-set {
+    height: clamp(24px, 3.5vw, 28px);
+    padding: 0 8px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-size: clamp(10px, 1.3vw, 11px);
+    font-weight: 600;
+    background: #1a4a80;
+    color: #e0e0e0;
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-server-set:hover { background: #2a5a90; }
+  .server-ips {
+    font-size: clamp(9px, 1.1vw, 11px);
+    color: #4caf50;
+    text-align: center;
+    margin-bottom: 4px;
+    flex-shrink: 0;
+    font-family: monospace;
+  }
+  .server-ips.hidden { display: none; }
+  .server-dot.online { background: #4caf50; }
+  .server-dot.offline { background: #f44336; }
+  .server-dot.checking { background: #ff9800; }
+
   .sub-select {
     flex: 1;
     background: #0f3460;
@@ -421,6 +469,12 @@
 
   <input type="range" class="slider" id="progressSlider" min="0" max="1000" value="0" step="1">
 
+  <div class="server-url-row" id="serverUrlRow">
+    <input type="text" class="server-url-input" id="serverUrlInput" placeholder="http://192.168.x.x:8900" inputmode="url" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <button class="btn-server-set" id="btnServerSet">接続</button>
+  </div>
+  <div class="server-ips hidden" id="serverIpsEl"></div>
+
   <div class="subtitle-bar hidden" id="subtitleBar">
     <button class="btn-sub" id="btnSub" title="字幕ファイルを読込">字幕</button>
     <input type="file" id="subFileInput" accept=".srt,.vtt,.ass,.ssa" hidden>
@@ -463,6 +517,10 @@
   const subSelect = document.getElementById('subSelect');
   const btnGenerate = document.getElementById('btnGenerate');
   const subOverlay = document.getElementById('subOverlay');
+  const serverUrlRow = document.getElementById('serverUrlRow');
+  const serverUrlInput = document.getElementById('serverUrlInput');
+  const btnServerSet = document.getElementById('btnServerSet');
+  const serverIpsEl = document.getElementById('serverIpsEl');
 
   const playlist = [];
   let currentIndex = -1;
@@ -485,9 +543,30 @@
   let generatedSubs = null; // { vtt, label } for current file
 
   // Server state
-  const SERVER_URL = '';  // same origin, combined server
+  const SERVER_URL = (() => {
+    try { return localStorage.getItem('serverUrl') || ''; }
+    catch { return ''; }
+  })();
   let serverOnline = false;
   let serverChecking = false;
+
+  serverUrlInput.value = SERVER_URL;
+  if (SERVER_URL) serverUrlRow.classList.remove('hidden');
+
+  btnServerSet.addEventListener('click', () => {
+    const url = serverUrlInput.value.trim().replace(/\/+$/, '');
+    if (!url) {
+      localStorage.removeItem('serverUrl');
+      location.reload();
+      return;
+    }
+    try { localStorage.setItem('serverUrl', url); } catch {}
+    location.reload();
+  });
+
+  serverUrlInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') btnServerSet.click();
+  });
 
   function updateLoopBtn() {
     btnLoop.textContent = loopIcons[loopMode] + ' ' + loopLabels[loopMode];
@@ -788,12 +867,20 @@
   }
 
   // ── Server-side transcription ──
+  let serverIps = [];
+
   async function checkServerHealth() {
     if (serverChecking) return;
     serverChecking = true;
     try {
       const res = await fetch(SERVER_URL + '/health', { signal: AbortSignal.timeout(3000) });
       serverOnline = res.ok;
+      if (serverOnline) {
+        try {
+          const data = await res.json();
+          if (data.ips && data.ips.length > 0) serverIps = data.ips;
+        } catch {}
+      }
     } catch {
       serverOnline = false;
     }
@@ -803,19 +890,29 @@
 
   function updateGenerateBtn() {
     if (serverOnline) {
+      const port = SERVER_URL.match(/:(\d+)/)?.[1] || '8900';
+      const ips = serverIps.map(ip => ip + ':' + port).join(', ');
       btnGenerate.innerHTML = '<span class="server-dot online"></span>サーバー認識';
-      btnGenerate.title = 'サーバーで高速認識';
+      btnGenerate.title = 'サーバー接続済: ' + (ips || 'Mac');
+      if (serverIps.length > 0) {
+        serverIpsEl.textContent = 'Mac IP: ' + ips;
+        serverIpsEl.classList.remove('hidden');
+      } else {
+        serverIpsEl.classList.add('hidden');
+      }
     } else if (serverChecking) {
       btnGenerate.innerHTML = '<span class="server-dot checking"></span>字幕生成';
+      serverIpsEl.classList.add('hidden');
     } else {
       btnGenerate.innerHTML = '<span class="server-dot offline"></span>字幕生成';
-      btnGenerate.title = 'ローカル認識（低速）';
+      btnGenerate.title = SERVER_URL ? 'サーバー未接続: ' + SERVER_URL : 'サーバーURL未設定';
+      serverIpsEl.classList.add('hidden');
     }
   }
 
   async function serverTranscribe(file) {
     btnGenerate.textContent = 'サーバー送信中...';
-    const res = await fetch('/transcribe', {
+    const res = await fetch(SERVER_URL + '/transcribe', {
       method: 'POST',
       body: file.stream(),
       headers: {
@@ -997,6 +1094,21 @@
   }
 
   btnGenerate.addEventListener('click', () => {
+    if (!serverOnline) {
+      serverUrlRow.classList.remove('hidden');
+      serverUrlInput.focus();
+      const port = location.port || '8900';
+      if (serverIps.length > 0) {
+        serverUrlInput.placeholder = serverIps[0] + ':' + port;
+        showError('サーバー未接続。「' + serverIps.join(':8900, ') + ':8900」を入力');
+      } else if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        serverUrlInput.placeholder = location.hostname + ':' + port;
+        showError('サーバー未接続。「接続」を押して再接続');
+      } else {
+        showError('MacのIPとポートを入力（例: 192.168.1.5:8900）');
+      }
+      return;
+    }
     startTranscription();
   });
 
