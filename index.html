@@ -401,7 +401,7 @@
 
   <div class="subtitle-bar" id="subtitleBar">
     <button class="btn-sub" id="btnSub" title="字幕ファイルを読込">字幕</button>
-    <input type="file" id="subFileInput" accept=".srt,.vtt,.ass,.ssa,.txt,text/*" style="position:absolute;width:0.1px;height:0.1px;opacity:0;overflow:hidden;z-index:-1">
+    <input type="file" id="subFileInput" style="position:absolute;width:0.1px;height:0.1px;opacity:0;overflow:hidden;z-index:-1">
     <select class="sub-select" id="subSelect"></select>
   </div>
 
@@ -851,6 +851,8 @@
     const result = await parseSubFile(file);
     if (result) {
       addSubTrack(result.label, result.language, result.vtt);
+    } else {
+      alert('未対応の字幕形式です。SRT / VTT / ASS / SSA ファイルを選択してください。');
     }
     subFileInput.value = '';
   });
