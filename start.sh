@@ -1,15 +1,24 @@
 #!/bin/bash
 cd "$(dirname "$0")"
-pkill -f "python3 server.py" 2>/dev/null
+
+# Kill old processes
+lsof -ti :8900 | xargs kill 2>/dev/null
 pkill -f cloudflared 2>/dev/null
-echo "Starting server..."
+sleep 1
+
+# Start server
 python3 server.py &
 sleep 3
-echo "Starting tunnel..."
+
+# Start tunnel and wait for URL
+echo "起動中..."
 /opt/homebrew/bin/cloudflared tunnel --url http://localhost:8900 2>&1 | while read line; do
   echo "$line" | grep -o 'https://[^ ]*\.trycloudflare\.com' | while read url; do
     echo ""
-    echo ">>> Tunnel URL: $url <<<"
+    echo "======================================"
+    echo "  iPhoneでこのURLを開く:"
+    echo "  $url"
+    echo "======================================"
     echo ""
   done
 done
