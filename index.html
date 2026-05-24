@@ -243,7 +243,7 @@
     margin-bottom: clamp(8px, 1.2vw, 12px);
     flex-shrink: 0;
   }
-  .subtitle-bar.hidden { display: none; }
+  .subtitle-bar.hidden { visibility: hidden; }
 
   .btn-sub {
     height: clamp(28px, 4vw, 34px);
@@ -266,75 +266,6 @@
   }
   .btn-sub:hover { color: #fff; }
   .btn-sub.active { background: #1a4a80; color: #e94560; }
-
-  .btn-generate {
-    background: #0f3460;
-    color: #e94560;
-    flex-shrink: 0;
-  }
-  .btn-generate:hover { background: #1a4a80; }
-  .btn-generate.loading {
-    background: #1a4a80;
-    color: #ffd700;
-    pointer-events: none;
-  }
-  .btn-generate.hidden-btn { display: none; }
-
-  .server-dot {
-    display: inline-block;
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    margin-right: 4px;
-    vertical-align: middle;
-  }
-  .server-dot.online { background: #4caf50; }
-  .server-dot.offline { background: #f44336; }
-  .server-dot.checking { background: #ff9800; }
-
-  .server-url-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: clamp(8px, 1.2vw, 12px);
-    flex-shrink: 0;
-  }
-  .server-url-row.hidden { display: none; }
-  .server-url-input {
-    flex: 1;
-    background: #0f3460;
-    border: 1px solid #1a4a80;
-    border-radius: 6px;
-    padding: clamp(4px, 0.8vw, 6px) 8px;
-    font-size: clamp(10px, 1.3vw, 12px);
-    color: #a0b4d0;
-    outline: none;
-    font-family: monospace;
-  }
-  .server-url-input:focus { border-color: #4caf50; }
-  .server-url-input::placeholder { color: #555; }
-  .btn-server-set {
-    height: clamp(24px, 3.5vw, 28px);
-    padding: 0 8px;
-    border-radius: 6px;
-    border: none;
-    cursor: pointer;
-    font-size: clamp(10px, 1.3vw, 11px);
-    font-weight: 600;
-    background: #1a4a80;
-    color: #e0e0e0;
-    white-space: nowrap;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .btn-server-set:hover { background: #2a5a90; }
-  .server-ips {
-    font-size: clamp(9px, 1.1vw, 11px);
-    color: #4caf50;
-    text-align: center;
-    margin-bottom: 4px;
-    flex-shrink: 0;
-    font-family: monospace;
-  }
-  .server-ips.hidden { display: none; }
   .server-dot.online { background: #4caf50; }
   .server-dot.offline { background: #f44336; }
   .server-dot.checking { background: #ff9800; }
@@ -440,7 +371,6 @@
     border-radius: 8px;
     white-space: pre-line;
   }
-  .sub-overlay.hidden { display: none; }
 </style>
 </head>
 <body>
@@ -460,7 +390,7 @@
     <video id="videoElem" playsinline webkit-playsinline></video>
   </div>
 
-  <div class="sub-overlay hidden" id="subOverlay"></div>
+  <div class="sub-overlay" id="subOverlay"></div>
 
   <div class="time-row">
     <span class="time-current" id="timeCurrent">00:00</span>
@@ -469,17 +399,10 @@
 
   <input type="range" class="slider" id="progressSlider" min="0" max="1000" value="0" step="1">
 
-  <div class="server-url-row" id="serverUrlRow">
-    <input type="text" class="server-url-input" id="serverUrlInput" placeholder="http://192.168.x.x:8900" inputmode="url" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-    <button class="btn-server-set" id="btnServerSet">接続</button>
-  </div>
-  <div class="server-ips hidden" id="serverIpsEl"></div>
-
-  <div class="subtitle-bar hidden" id="subtitleBar">
+  <div class="subtitle-bar" id="subtitleBar">
     <button class="btn-sub" id="btnSub" title="字幕ファイルを読込">字幕</button>
-    <input type="file" id="subFileInput" accept=".srt,.vtt,.ass,.ssa" hidden>
+    <input type="file" id="subFileInput" accept=".srt,.vtt,.ass,.ssa,.txt,text/*" style="position:absolute;width:0.1px;height:0.1px;opacity:0;overflow:hidden;z-index:-1">
     <select class="sub-select" id="subSelect"></select>
-    <button class="btn-sub btn-generate" id="btnGenerate" title="音声認識で字幕を生成">字幕生成</button>
   </div>
 
   <div class="bottom-row">
@@ -515,12 +438,7 @@
   const btnSub = document.getElementById('btnSub');
   const subFileInput = document.getElementById('subFileInput');
   const subSelect = document.getElementById('subSelect');
-  const btnGenerate = document.getElementById('btnGenerate');
   const subOverlay = document.getElementById('subOverlay');
-  const serverUrlRow = document.getElementById('serverUrlRow');
-  const serverUrlInput = document.getElementById('serverUrlInput');
-  const btnServerSet = document.getElementById('btnServerSet');
-  const serverIpsEl = document.getElementById('serverIpsEl');
 
   const playlist = [];
   let currentIndex = -1;
@@ -536,37 +454,6 @@
   // Subtitle state
   const subTracks = []; // { label, language, blobUrl, embedded }
   let subBlobUrls = [];
-
-  // Whisper state
-  let bwInstance = null;
-  let bwRunning = false;
-  let generatedSubs = null; // { vtt, label } for current file
-
-  // Server state
-  const SERVER_URL = (() => {
-    try { return localStorage.getItem('serverUrl') || ''; }
-    catch { return ''; }
-  })();
-  let serverOnline = false;
-  let serverChecking = false;
-
-  serverUrlInput.value = SERVER_URL;
-  if (SERVER_URL) serverUrlRow.classList.remove('hidden');
-
-  btnServerSet.addEventListener('click', () => {
-    const url = serverUrlInput.value.trim().replace(/\/+$/, '');
-    if (!url) {
-      localStorage.removeItem('serverUrl');
-      location.reload();
-      return;
-    }
-    try { localStorage.setItem('serverUrl', url); } catch {}
-    location.reload();
-  });
-
-  serverUrlInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') btnServerSet.click();
-  });
 
   function updateLoopBtn() {
     btnLoop.textContent = loopIcons[loopMode] + ' ' + loopLabels[loopMode];
@@ -610,18 +497,15 @@
 
     // Audio subtitle overlay: manually find active cue via parsed VTT
     if (!isVideo && subTracks.length > 0) {
-      const t = subTracks.find(s => s.trackEl && s.trackEl.mode === 'showing');
+      const t = subTracks.find(s => s._active);
       if (t && t._cues) {
         const ct = media.currentTime;
         const cue = t._cues.find(c => ct >= c.start && ct < c.end);
         if (cue) {
           subOverlay.textContent = cue.text;
-          subOverlay.classList.remove('hidden');
         } else {
-          subOverlay.classList.add('hidden');
         }
       } else {
-        subOverlay.classList.add('hidden');
       }
     }
   }
@@ -640,7 +524,14 @@
       return;
     }
     if (loopMode === 2 && playlist.length > 1) {
-      currentIndex = (currentIndex + 1) % playlist.length;
+      let next = currentIndex;
+      let attempts = 0;
+      do {
+        next = (next + 1) % playlist.length;
+        attempts++;
+      } while (/\.(srt|vtt)$/i.test(playlist[next].name) && attempts < playlist.length);
+      if (attempts >= playlist.length) return;
+      currentIndex = next;
       loadFile(currentIndex);
       media.play().catch(() => {});
       return;
@@ -734,31 +625,25 @@
     track.src = url;
     const targetEl = isVideo ? videoElem : audioElem;
     targetEl.appendChild(track);
-    track.mode = subTracks.length === 0 ? 'showing' : 'hidden';
+    // iOS audio tracks ignore mode, so we track active state separately
+    const active = subTracks.length === 0;
+    try { track.mode = active ? 'showing' : 'hidden'; } catch {}
 
-    subTracks.push({ label, language, blobUrl: url, embedded: true, trackEl: track, _cues: cues });
+    subTracks.push({ label, language, blobUrl: url, embedded: true, trackEl: track, _cues: cues, _active: active });
     updateSubUI();
   }
 
   // ── Update subtitle selector ──
   function updateSubUI() {
-    // Always show bar when a file is loaded (for generate button)
     if (currentIndex < 0) {
-      subtitleBar.classList.add('hidden');
-      btnGenerate.classList.add('hidden-btn');
       return;
     }
-    subtitleBar.classList.remove('hidden');
 
-    // Generate button: show only when no tracks and not yet generated
-    if (subTracks.length === 0 && !generatedSubs) {
-      btnGenerate.classList.remove('hidden-btn');
-      btnSub.style.display = 'none';
+    btnSub.style.display = '';
+    if (subTracks.length === 0) {
       subSelect.style.display = 'none';
       return;
     }
-    btnGenerate.classList.add('hidden-btn');
-    btnSub.style.display = '';
     subSelect.style.display = '';
 
     subSelect.innerHTML = '';
@@ -772,14 +657,11 @@
       const opt = document.createElement('option');
       opt.value = String(i);
       opt.textContent = t.label;
-      if (t.trackEl && t.trackEl.mode === 'showing') {
-        opt.selected = true;
-      }
+      if (t._active) opt.selected = true;
       subSelect.appendChild(opt);
     });
 
-    // Check if any track is showing
-    const active = subTracks.some(t => t.trackEl && t.trackEl.mode === 'showing');
+    const active = subTracks.some(t => t._active);
     if (active) {
       btnSub.classList.add('active');
       btnSub.textContent = '字幕 ON';
@@ -787,8 +669,7 @@
       btnSub.classList.remove('active');
       btnSub.textContent = '字幕';
     }
-    // Set select to current active
-    const activeIdx = subTracks.findIndex(t => t.trackEl && t.trackEl.mode === 'showing');
+    const activeIdx = subTracks.findIndex(t => t._active);
     if (activeIdx >= 0) subSelect.value = String(activeIdx);
     else subSelect.value = '-1';
   }
@@ -797,341 +678,32 @@
   subSelect.addEventListener('change', () => {
     const idx = parseInt(subSelect.value);
     subTracks.forEach((t, i) => {
+      t._active = (i === idx);
       if (t.trackEl) {
-        t.trackEl.mode = (i === idx) ? 'showing' : 'hidden';
+        try { t.trackEl.mode = t._active ? 'showing' : 'hidden'; } catch {}
       }
     });
     if (!isVideo && idx < 0) {
-      subOverlay.classList.add('hidden');
-      subOverlay.textContent = '';
+        subOverlay.textContent = '';
     }
     updateSubUI();
-  });
-
-  // ── Whisper auto-transcription (browser-whisper, WebGPU/WASM) ──
-  function subDb() {
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.open('SubCache', 1);
-      req.onupgradeneeded = () => { req.result.createObjectStore('subs'); };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-  }
-
-  function fileKey(item) {
-    return item.name + '|' + item.file.size + '|' + item.file.lastModified;
-  }
-
-  async function getCachedSubs(item) {
-    try {
-      const db = await subDb();
-      return new Promise((resolve) => {
-        const tx = db.transaction('subs', 'readonly');
-        const req = tx.objectStore('subs').get(fileKey(item));
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => resolve(null);
-      });
-    } catch { return null; }
-  }
-
-  async function cacheSubs(item, vtt) {
-    try {
-      const db = await subDb();
-      const tx = db.transaction('subs', 'readwrite');
-      tx.objectStore('subs').put(vtt, fileKey(item));
-    } catch { /* ignore */ }
-  }
-
-  let bwLoading = false;
-
-  async function getBW() {
-    if (bwInstance) return bwInstance;
-    if (bwLoading) return null;
-    bwLoading = true;
-
-    try {
-      if (!window._bw || !window._bw.BrowserWhisper) {
-        btnGenerate.textContent = 'モジュール読込中...';
-        const mod = await import('https://esm.sh/browser-whisper@1.0.2');
-        window._bw = { BrowserWhisper: mod.BrowserWhisper };
-      }
-      bwInstance = new window._bw.BrowserWhisper({ model: 'whisper-tiny', language: 'ja' });
-      bwLoading = false;
-      return bwInstance;
-    } catch (err) {
-      console.error('BrowserWhisper load error:', err);
-      showError('BW未読込');
-      bwLoading = false;
-      return null;
-    }
-  }
-
-  // ── Server-side transcription ──
-  let serverIps = [];
-
-  async function checkServerHealth() {
-    if (serverChecking) return;
-    serverChecking = true;
-    try {
-      const res = await fetch(SERVER_URL + '/health', { signal: AbortSignal.timeout(3000) });
-      serverOnline = res.ok;
-      if (serverOnline) {
-        try {
-          const data = await res.json();
-          if (data.ips && data.ips.length > 0) serverIps = data.ips;
-        } catch {}
-      }
-    } catch {
-      serverOnline = false;
-    }
-    serverChecking = false;
-    updateGenerateBtn();
-  }
-
-  function updateGenerateBtn() {
-    if (serverOnline) {
-      const port = SERVER_URL.match(/:(\d+)/)?.[1] || '8900';
-      const ips = serverIps.map(ip => ip + ':' + port).join(', ');
-      btnGenerate.innerHTML = '<span class="server-dot online"></span>サーバー認識';
-      btnGenerate.title = 'サーバー接続済: ' + (ips || 'Mac');
-      if (serverIps.length > 0) {
-        serverIpsEl.textContent = 'Mac IP: ' + ips;
-        serverIpsEl.classList.remove('hidden');
-      } else {
-        serverIpsEl.classList.add('hidden');
-      }
-    } else if (serverChecking) {
-      btnGenerate.innerHTML = '<span class="server-dot checking"></span>字幕生成';
-      serverIpsEl.classList.add('hidden');
-    } else {
-      btnGenerate.innerHTML = '<span class="server-dot offline"></span>字幕生成';
-      btnGenerate.title = SERVER_URL ? 'サーバー未接続: ' + SERVER_URL : 'サーバーURL未設定';
-      serverIpsEl.classList.add('hidden');
-    }
-  }
-
-  async function serverTranscribe(file) {
-    btnGenerate.textContent = 'サーバー送信中...';
-    const res = await fetch(SERVER_URL + '/transcribe', {
-      method: 'POST',
-      body: file.stream(),
-      headers: {
-        'Content-Type': 'application/octet-stream',
-        'X-Filename': encodeURIComponent(file.name || 'audio.wav')
-      }
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error('Server error ' + res.status + ': ' + errText);
-    }
-
-    btnGenerate.textContent = '処理中...';
-    const data = await res.json();
-    return data.segments; // [{ start, end, text }, ...] in seconds
-  }
-
-  function segmentsToVtt(segments) {
-    if (!segments || segments.length === 0) return '';
-    let vtt = 'WEBVTT\n\n';
-    segments.forEach((seg, i) => {
-      const pad2 = (n) => String(Math.floor(n)).padStart(2, '0');
-      const pad3 = (n) => String(Math.round(n)).padStart(3, '0');
-
-      const sh = pad2(seg.timeStart / 3600000);
-      const sm = pad2((seg.timeStart % 3600000) / 60000);
-      const ss = pad2((seg.timeStart % 60000) / 1000);
-      const sms = pad3(seg.timeStart % 1000);
-
-      const eh = pad2(seg.timeEnd / 3600000);
-      const em = pad2((seg.timeEnd % 3600000) / 60000);
-      const es = pad2((seg.timeEnd % 60000) / 1000);
-      const ems = pad3(seg.timeEnd % 1000);
-
-      vtt += (i + 1) + '\n';
-      vtt += sh + ':' + sm + ':' + ss + '.' + sms + ' --> ';
-      vtt += eh + ':' + em + ':' + es + '.' + ems + '\n';
-      vtt += (seg.text || '').trim() + '\n\n';
-    });
-    return vtt;
-  }
-
-  async function decodeAudioToPCM(file) {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-    try {
-      const buf = await file.arrayBuffer();
-      const audioBuf = await ctx.decodeAudioData(buf);
-      const offlineCtx = new OfflineAudioContext(1, Math.ceil(audioBuf.duration * 16000), 16000);
-      const source = offlineCtx.createBufferSource();
-      source.buffer = audioBuf;
-      source.connect(offlineCtx.destination);
-      source.start(0);
-      const rendered = await offlineCtx.startRendering();
-      return rendered.getChannelData(0);
-    } finally {
-      ctx.close();
-    }
-  }
-
-  async function startTranscription() {
-    if (bwRunning) return;
-    const item = playlist[currentIndex];
-    if (!item) return;
-
-    bwRunning = true;
-    btnGenerate.classList.add('loading');
-
-    const segments = [];
-    const startTime = Date.now();
-
-    // ── Try server first ──
-    if (serverOnline) {
-      try {
-        btnGenerate.textContent = 'サーバー認識中...';
-        const serverSegs = await serverTranscribe(item.file);
-        for (const s of serverSegs) {
-          segments.push({
-            timeStart: s.start * 1000,
-            timeEnd: s.end * 1000,
-            text: s.text
-          });
-        }
-        console.log('Server done: ' + segments.length + ' segments in ' +
-          ((Date.now() - startTime) / 1000).toFixed(1) + 's');
-      } catch (err) {
-        console.warn('Server failed, falling back to local:', err.message);
-        serverOnline = false;
-        updateGenerateBtn();
-      }
-    }
-
-    // ── Local browser-whisper fallback ──
-    if (segments.length === 0) {
-      const bw = await getBW();
-      if (!bw) { bwRunning = false; btnGenerate.classList.remove('loading'); updateGenerateBtn(); return; }
-
-      let pcm = null;
-      try {
-        btnGenerate.textContent = '音声変換中...';
-        pcm = await decodeAudioToPCM(item.file);
-        const totalSec = pcm.length / 16000;
-        console.log('Decoded: ' + totalSec.toFixed(1) + 's');
-
-        const CHUNK_SEC = 120;
-        const chunkSamples = CHUNK_SEC * 16000;
-        const numChunks = Math.ceil(pcm.length / chunkSamples);
-
-        for (let c = 0; c < numChunks; c++) {
-          const startSample = c * chunkSamples;
-          const endSample = Math.min(pcm.length, startSample + chunkSamples);
-          const chunk = pcm.slice(startSample, endSample);
-          const offsetSec = startSample / 16000;
-
-          btnGenerate.textContent = '認識中 ' + (c + 1) + '/' + numChunks;
-
-          const stream = bw.transcribePCM(chunk, {
-            language: 'ja',
-            onProgress: (evt) => {
-              if (evt.stage === 'loading') {
-                btnGenerate.textContent = 'チャンク' + (c + 1) + '/' + numChunks + ' 読込中';
-              } else if (evt.stage === 'transcribing') {
-                btnGenerate.textContent = '認識中 ' + (c + 1) + '/' + numChunks + ' ' + Math.round(evt.progress * 100) + '%';
-              }
-            }
-          });
-
-          for await (const seg of stream) {
-            segments.push({
-              timeStart: (offsetSec + seg.start) * 1000,
-              timeEnd: (offsetSec + seg.end) * 1000,
-              text: seg.text
-            });
-          }
-          console.log('Chunk ' + (c + 1) + '/' + numChunks + ' done, total: ' + segments.length);
-        }
-      } catch (err) {
-        console.error('Local transcribe error:', err);
-      }
-      pcm = null;
-    }
-
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log('Done in ' + elapsed + 's, ' + segments.length + ' segments');
-
-    // Save results (partial if some chunks failed)
-    if (segments.length === 0) {
-      btnGenerate.textContent = '字幕なし';
-      btnGenerate.classList.remove('loading');
-      setTimeout(() => { updateGenerateBtn(); }, 2000);
-      bwRunning = false;
-      return;
-    }
-
-    try {
-      const vtt = segmentsToVtt(segments);
-      console.log('VTT size:', (vtt.length / 1024).toFixed(1) + 'KB');
-      cacheSubs(item, vtt);
-      generatedSubs = { vtt, label: '[自動] 音声認識' };
-      addSubTrack(generatedSubs.label, 'ja', vtt);
-      btnGenerate.classList.remove('loading');
-      btnGenerate.classList.add('hidden-btn');
-    } catch (err) {
-      console.error('VTT/save error:', err);
-      showError('字幕保存失敗');
-    }
-
-    bwRunning = false;
-  }
-
-  function showError(msg) {
-    console.error(msg);
-    btnGenerate.textContent = msg;
-    btnGenerate.classList.add('loading');
-    setTimeout(() => {
-      btnGenerate.classList.remove('loading');
-      updateGenerateBtn();
-    }, 3000);
-  }
-
-  btnGenerate.addEventListener('click', () => {
-    if (!serverOnline) {
-      serverUrlRow.classList.remove('hidden');
-      serverUrlInput.focus();
-      const port = location.port || '8900';
-      if (serverIps.length > 0) {
-        serverUrlInput.placeholder = serverIps[0] + ':' + port;
-        showError('サーバー未接続。「' + serverIps.join(':8900, ') + ':8900」を入力');
-      } else if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-        serverUrlInput.placeholder = location.hostname + ':' + port;
-        showError('サーバー未接続。「接続」を押して再接続');
-      } else {
-        showError('MacのIPとポートを入力（例: 192.168.1.5:8900）');
-      }
-      return;
-    }
-    startTranscription();
   });
 
   // ── Clear all subtitle tracks ──
   function clearSubTracks() {
     subTracks.forEach(t => {
       if (t.trackEl) {
-        t.trackEl.mode = 'hidden';
+        try { t.trackEl.mode = 'hidden'; } catch {}
         t.trackEl.remove();
       }
     });
     subBlobUrls.forEach(u => URL.revokeObjectURL(u));
     subBlobUrls.length = 0;
     subTracks.length = 0;
-    generatedSubs = null;
-    btnGenerate.classList.remove('loading');
-    updateGenerateBtn();
     btnSub.style.display = '';
     subSelect.style.display = '';
-    subtitleBar.classList.add('hidden');
     btnSub.classList.remove('active');
     btnSub.textContent = '字幕';
-    subOverlay.classList.add('hidden');
     subOverlay.textContent = '';
   }
 
@@ -1262,11 +834,12 @@
     if (subTracks.length === 0) {
       subFileInput.click();
     } else {
-      const anyActive = subTracks.some(t => t.trackEl && t.trackEl.mode === 'showing');
+      const anyActive = subTracks.some(t => t._active);
       if (anyActive) {
-        subTracks.forEach(t => { if (t.trackEl) t.trackEl.mode = 'hidden'; });
+        subTracks.forEach(t => { t._active = false; try { t.trackEl.mode = 'hidden'; } catch {} });
       } else {
-        if (subTracks[0].trackEl) subTracks[0].trackEl.mode = 'showing';
+        if (subTracks[0]) subTracks[0]._active = true;
+        try { if (subTracks[0]) subTracks[0].trackEl.mode = 'showing'; } catch {}
       }
       updateSubUI();
     }
@@ -1360,25 +933,11 @@
           addSubTrack(s.label, s.language, s.vtt);
         });
         if (subs.length === 0) {
-          const cached = await getCachedSubs(item);
-          if (cached) {
-            generatedSubs = { vtt: cached, label: '[自動] 音声認識' };
-            addSubTrack(generatedSubs.label, 'ja', cached);
-          } else {
-            updateSubUI();
-          }
-        }
-      });
-    } else {
-      getCachedSubs(item).then((cached) => {
-        if (currentIndex !== index) return;
-        if (cached) {
-          generatedSubs = { vtt: cached, label: '[自動] 音声認識' };
-          addSubTrack(generatedSubs.label, 'ja', cached);
-        } else {
           updateSubUI();
         }
       });
+    } else {
+      updateSubUI();
     }
   }
 
@@ -1434,7 +993,7 @@
   btnOpen.addEventListener('click', () => fileInput.click());
 
   fileInput.addEventListener('change', () => {
-    const files = Array.from(fileInput.files);
+    const files = Array.from(fileInput.files).filter(f => !/\.(srt|vtt)$/i.test(f.name));
     if (files.length === 0) return;
 
     files.forEach((file) => {
@@ -1498,8 +1057,6 @@
   }
 
   updateLoopBtn();
-  updateGenerateBtn();
-  checkServerHealth();
 </script>
 
 </body>
