@@ -362,33 +362,25 @@
   .sub-overlay {
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
+    justify-content: center;
     align-items: center;
     text-align: center;
-    padding: clamp(32px, 6vw, 56px) clamp(48px, 8vw, 80px);
+    padding: clamp(16px, 3vw, 28px) clamp(24px, 4vw, 40px);
     margin: 8px 0;
-    min-height: clamp(144px, 20vw, 192px);
-    line-height: 1.5;
-    font-size: clamp(56px, 8vw, 72px);
+    min-height: clamp(80px, 12vw, 120px);
+    max-height: clamp(160px, 28vw, 260px);
+    overflow: hidden;
+    line-height: 1.4;
+    font-size: clamp(36px, 6vw, 56px);
     color: #fff;
     background: rgba(0, 0, 0, 0.65);
-    border-radius: 32px;
+    border-radius: 24px;
     white-space: pre-line;
+    word-break: break-word;
     user-select: text;
     -webkit-user-select: text;
     -webkit-touch-callout: default;
     cursor: pointer;
-  }
-  .sub-overlay.first-cue {
-    justify-content: flex-start;
-  }
-  .sub-prev {
-    color: #888;
-    font-size: 0.7em;
-    margin-bottom: 6px;
-  }
-  .sub-curr {
-    color: #fff;
   }
 
   /* Toast / custom alert */
@@ -570,26 +562,19 @@
     }
     timeCurrent.textContent = fmtTime(media.currentTime);
 
-    // Audio subtitle overlay: show current cue + up to 2 previous cues
+    // Audio subtitle overlay: show only current cue
     if (!isVideo && subTracks.length > 0) {
       const t = subTracks.find(s => s._active);
       if (t && t._cues) {
         const ct = media.currentTime;
-        const idx = t._cues.findIndex(c => ct >= c.start && ct < c.end);
-        if (idx >= 0) {
-          const prevCues = t._cues.slice(Math.max(0, idx - 2), idx);
-          let html = '';
-          for (const c of prevCues) {
-            html += `<div class="sub-prev">${c.text}</div>`;
-          }
-          html += `<div class="sub-curr">${t._cues[idx].text}</div>`;
-          subOverlay.innerHTML = html;
-          subOverlay.classList.toggle('first-cue', idx === 0);
+        const cue = t._cues.find(c => ct >= c.start && ct < c.end);
+        if (cue) {
+          subOverlay.textContent = cue.text;
         } else {
-          subOverlay.innerHTML = '';
+          subOverlay.textContent = '';
         }
       } else {
-        subOverlay.innerHTML = '';
+        subOverlay.textContent = '';
       }
     }
   }
@@ -1375,17 +1360,7 @@
     let touchStartX = 0, touchStartY = 0;
 
     function getVisibleText() {
-      // Collect text from all visible subtitle cues
-      const lines = [];
-      const prevEls = subOverlay.querySelectorAll('.sub-prev');
-      const currEl = subOverlay.querySelector('.sub-curr');
-      prevEls.forEach(el => { if (el.textContent.trim()) lines.push(el.textContent.trim()); });
-      if (currEl && currEl.textContent.trim()) lines.push(currEl.textContent.trim());
-      // Fallback: use textContent of the whole overlay
-      if (lines.length === 0 && subOverlay.textContent.trim()) {
-        lines.push(subOverlay.textContent.trim());
-      }
-      return lines.join('\n');
+      return (subOverlay.textContent || '').trim();
     }
 
     async function copySubText() {
