@@ -39,6 +39,13 @@
   .btn-sub { background:#0f3460; }
   .btn-sub.on { background:#1a4a80; color:#e94560; }
 
+  /* Wrapper: takes remaining flex space, divides between overlay + selector */
+  .sub-panel {
+    flex:1 1 auto;
+    display:flex; flex-direction:column;
+    min-height:0;  /* allow shrinking below content */
+  }
+
   .sub-overlay {
     flex:1 1 auto;
     padding:24px 28px 16px;
@@ -47,7 +54,7 @@
     color:#fff; background:rgba(0,0,0,0.7);
     border-radius:24px 24px 0 0;
     user-select:text; -webkit-user-select:text;
-    overflow:auto; min-height:80px;
+    overflow:auto; min-height:60px;
   }
   .sub-overlay .inner {
     display:inline-block; text-align:left; max-width:100%;
@@ -56,7 +63,7 @@
 
   .sub-selector {
     flex-shrink:0;
-    max-height:24vh;
+    max-height:30vh;
     overflow-y:auto;
     background:rgba(0,0,0,0.75);
     border-radius:0 0 24px 24px;
@@ -64,6 +71,16 @@
     -webkit-overflow-scrolling:touch;
   }
   .sub-selector:empty { display:none; }
+  /* When selector is hidden, restore full rounding on overlay */
+  .sub-selector:empty + .sub-overlay,
+  .sub-panel:has(.sub-selector:empty) .sub-overlay {
+    border-radius:24px;
+  }
+  /* When selector is the only child (overlay hidden somehow), fully round it */
+  .sub-selector:only-child {
+    border-radius:24px;
+  }
+
   .sub-selector-item {
     padding:5px 8px;
     font-size:12px;
@@ -163,15 +180,17 @@
 <body>
 
 <div class="player">
-  <div style="text-align:center;font-size:11px;color:#4caf50;margin-bottom:4px">● NEW v2 — 一文ずつ表示</div>
+  <div style="text-align:center;font-size:11px;color:#4caf50;margin-bottom:4px">● NEW v3 — 字幕選択付き</div>
   <div class="file-area">
     <div class="file-name" id="fileName">ファイル未選択</div>
     <button class="btn" id="btnOpen">開く</button>
     <input type="file" id="fileInput" multiple hidden>
   </div>
 
-  <div class="sub-overlay" id="subOverlay"><span class="inner" id="subText"></span></div>
-  <div class="sub-selector" id="subSelector"></div>
+  <div class="sub-panel">
+    <div class="sub-overlay" id="subOverlay"><span class="inner" id="subText"></span></div>
+    <div class="sub-selector" id="subSelector"></div>
+  </div>
 
   <div class="time-row">
     <span id="timeCurrent">00:00</span>
@@ -341,7 +360,6 @@ function renderSubSelector() {
     div.addEventListener('click', () => {
       if (isFinite(audio.duration)) {
         audio.currentTime = cue.start;
-        // Also update the overlay immediately
         subText.textContent = cue.text.replace(/\n/g,' ');
         lastCueText = cue.text.replace(/\n/g,' ');
         highlightCue(i);
@@ -353,15 +371,12 @@ function renderSubSelector() {
 
 function highlightCue(idx) {
   if (idx === activeCueIdx) return;
-  // Remove old highlight
   const old = subSelector.querySelector('.sub-selector-item.active');
   if (old) old.classList.remove('active');
-  // Add new highlight
   if (idx >= 0) {
     const el = subSelector.querySelector('[data-index="' + idx + '"]');
     if (el) {
       el.classList.add('active');
-      // Scroll into view smoothly
       el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   }
@@ -370,7 +385,6 @@ function highlightCue(idx) {
 
 function addSubTrack(label, vttText) {
   const cues = parseVtt(vttText);
-  // Count sentences
   let sentCount = 0;
   cues.forEach(c => { sentCount += splitSentences(c.text).length; });
   const blob = new Blob([vttText],{type:'text/vtt'});
@@ -450,7 +464,6 @@ audio.addEventListener('timeupdate', () => {
   if (!dragging) progressSlider.value = (audio.currentTime/audio.duration)*1000;
   timeCurrent.textContent = fmt(audio.currentTime);
 
-  // Subtitle display: one sentence at a time
   if (subTracks.length>0) {
     const t = subTracks.find(s=>s._active);
     if (t && t._cues) {
@@ -467,7 +480,6 @@ audio.addEventListener('timeupdate', () => {
           const idx = Math.min(Math.floor(progress*sentences.length), sentences.length-1);
           newText = sentences[idx];
         }
-        // Highlight active cue in selector
         highlightCue(cueIdx);
       } else {
         highlightCue(-1);
