@@ -363,10 +363,10 @@
 
   .sub-overlay {
     display: flex;
-    flex-direction: column;
+    align-items: center;
     justify-content: center;
-    align-items: flex-start;
-    text-align: left;
+    text-align: center;
+    text-align-last: left;
     padding: clamp(28px, 6vw, 48px) clamp(20px, 4vw, 36px);
     margin: 8px 0;
     flex: 1 1 auto;
@@ -602,6 +602,16 @@
         if (newText !== lastCueText) {
           lastCueText = newText;
           subOverlay.textContent = newText;
+          const testEl = document.createElement('div');
+          const cs = getComputedStyle(subOverlay);
+          testEl.style.cssText = 'position:absolute;visibility:hidden;width:' + subOverlay.clientWidth + 'px;font:' + cs.font + ';line-height:' + cs.lineHeight + ';padding:0;white-space:nowrap';
+          testEl.textContent = newText;
+          document.body.appendChild(testEl);
+          const singleH = testEl.offsetHeight;
+          testEl.style.whiteSpace = 'normal';
+          const wrapH = testEl.offsetHeight;
+          document.body.removeChild(testEl);
+          subOverlay.style.textAlignLast = wrapH > singleH ? 'left' : 'center';
         }
       } else {
         if (lastCueText !== '') {
