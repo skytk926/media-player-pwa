@@ -375,7 +375,7 @@
     color: #fff;
     background: rgba(0, 0, 0, 0.65);
     border-radius: 24px;
-    white-space: pre-line;
+    white-space: normal;
     word-break: break-word;
     user-select: text;
     -webkit-user-select: text;
@@ -432,7 +432,7 @@
 <body>
 
 <div class="player">
-  <div class="player-title">プレーヤー</div>
+  <div class="player-title">プレーヤー v10</div>
 
   <div class="file-area">
     <div class="file-name" id="fileName">ファイル未選択</div>
@@ -563,13 +563,27 @@
     }
     timeCurrent.textContent = fmtTime(media.currentTime);
 
-    // Audio subtitle overlay: show only current cue, update only on change
+    // Audio subtitle overlay: split cue into sentences, show one at a time
     if (!isVideo && subTracks.length > 0) {
       const t = subTracks.find(s => s._active);
       if (t && t._cues) {
         const ct = media.currentTime;
         const cue = t._cues.find(c => ct >= c.start && ct < c.end);
-        const newText = cue ? cue.text : '';
+        let newText = '';
+        if (cue) {
+          // Split into sentences: first try 。！？, then by spaces
+          let sentences = cue.text.split(/(?<=[。！？])/).filter(s => s.trim());
+          if (sentences.length <= 1) {
+            sentences = cue.text.split(/\s+/).filter(s => s.trim());
+          }
+          if (sentences.length <= 1) {
+            newText = cue.text.replace(/\n/g, ' ');
+          } else {
+            const progress = (ct - cue.start) / (cue.end - cue.start);
+            const idx = Math.min(Math.floor(progress * sentences.length), sentences.length - 1);
+            newText = sentences[idx];
+          }
+        }
         if (newText !== lastCueText) {
           lastCueText = newText;
           subOverlay.textContent = newText;
