@@ -1289,7 +1289,7 @@
     renderPlaylist();
   }
 
-  btnOpen.addEventListener('click', () => showMediaSourceMenu());
+  btnOpen.addEventListener('click', () => fileInput.click());
 
   fileInput.addEventListener('change', () => {
     const files = Array.from(fileInput.files).filter(f => !SUB_EXTS.test(f.name));
