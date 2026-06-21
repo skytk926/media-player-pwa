@@ -510,6 +510,7 @@
   // Subtitle state
   const subTracks = []; // { label, language, blobUrl, embedded }
   let subBlobUrls = [];
+  let lastCueText = ''; // track current cue to avoid re-rendering on every timeupdate
 
   function showToast(msg, duration = 3000) {
     const overlay = document.createElement('div');
@@ -562,19 +563,22 @@
     }
     timeCurrent.textContent = fmtTime(media.currentTime);
 
-    // Audio subtitle overlay: show only current cue
+    // Audio subtitle overlay: show only current cue, update only on change
     if (!isVideo && subTracks.length > 0) {
       const t = subTracks.find(s => s._active);
       if (t && t._cues) {
         const ct = media.currentTime;
         const cue = t._cues.find(c => ct >= c.start && ct < c.end);
-        if (cue) {
-          subOverlay.textContent = cue.text;
-        } else {
-          subOverlay.textContent = '';
+        const newText = cue ? cue.text : '';
+        if (newText !== lastCueText) {
+          lastCueText = newText;
+          subOverlay.textContent = newText;
         }
       } else {
-        subOverlay.textContent = '';
+        if (lastCueText !== '') {
+          lastCueText = '';
+          subOverlay.textContent = '';
+        }
       }
     }
   }
@@ -754,6 +758,7 @@
     });
     if (!isVideo && idx < 0) {
         subOverlay.textContent = '';
+        lastCueText = '';
     }
     updateSubUI();
   });
@@ -774,6 +779,7 @@
     btnSub.classList.remove('active');
     btnSub.textContent = '字幕';
     subOverlay.textContent = '';
+    lastCueText = '';
   }
 
   // ── Extract MP4 embedded subtitles ──
@@ -1353,66 +1359,6 @@
   progressSlider.addEventListener('change', () => {
     dragging = false;
   });
-
-  // ── Long press on subtitle overlay to copy ──
-  (function setupSubOverlayCopy() {
-    let longPressTimer = null;
-    let touchStartX = 0, touchStartY = 0;
-
-    function getVisibleText() {
-      return (subOverlay.textContent || '').trim();
-    }
-
-    async function copySubText() {
-      const text = getVisibleText();
-      if (!text) return;
-
-      try {
-        await navigator.clipboard.writeText(text);
-        showToast('📋 コピーしました');
-      } catch {
-        // Fallback for older browsers / non-HTTPS
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        ta.style.cssText = 'position:fixed;left:-9999px';
-        document.body.appendChild(ta);
-        ta.select();
-        try { document.execCommand('copy'); showToast('📋 コピーしました'); } catch {}
-        document.body.removeChild(ta);
-      }
-    }
-
-    subOverlay.addEventListener('touchstart', (e) => {
-      if (!getVisibleText()) return;
-      touchStartX = e.touches[0].clientX;
-      touchStartY = e.touches[0].clientY;
-      longPressTimer = setTimeout(() => {
-        longPressTimer = null;
-        copySubText();
-      }, 500);
-    }, { passive: true });
-
-    subOverlay.addEventListener('touchend', () => {
-      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
-    });
-
-    subOverlay.addEventListener('touchmove', (e) => {
-      if (!longPressTimer) return;
-      const dx = e.touches[0].clientX - touchStartX;
-      const dy = e.touches[0].clientY - touchStartY;
-      // Cancel long press if finger moves too much
-      if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
-        clearTimeout(longPressTimer);
-        longPressTimer = null;
-      }
-    }, { passive: true });
-
-    // Also support right-click / Ctrl+click on desktop
-    subOverlay.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      copySubText();
-    });
-  })();
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js');
