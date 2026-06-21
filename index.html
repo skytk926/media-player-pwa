@@ -361,29 +361,85 @@
   }
   .btn-skip:hover { background: #1a4a80; }
 
+  /* Wrapper: shares space between overlay + selector */
+  .sub-panel {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    margin: 8px 0;
+  }
+
   .sub-overlay {
     display: flex;
     align-items: center;
     justify-content: center;
     text-align: center;
     text-align-last: left;
-    padding: clamp(28px, 6vw, 48px) clamp(20px, 4vw, 36px);
-    margin: 8px 0;
-    flex: 1 1 auto;
-    min-height: clamp(160px, 30vw, 280px);
+    padding: clamp(20px, 4vw, 36px) clamp(20px, 4vw, 36px) clamp(12px, 2vw, 20px);
+    flex: 3 1 0px;
+    min-height: 60px;
     max-height: none;
-    overflow: hidden;
+    overflow: auto;
     line-height: 1.5;
     font-size: clamp(40px, 7vw, 72px);
     color: #fff;
     background: rgba(0, 0, 0, 0.7);
-    border-radius: 24px;
+    border-radius: 24px 24px 0 0;
     white-space: normal;
     word-break: break-word;
     user-select: text;
     -webkit-user-select: text;
     -webkit-touch-callout: default;
     cursor: pointer;
+  }
+
+
+  .sub-selector {
+    flex: 1 0 0px;
+    min-height: 80px;
+    max-height: 35vh;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.75);
+    border-radius: 0 0 24px 24px;
+    padding: 4px 10px 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sub-selector:empty { display: none; }
+  .sub-selector-item {
+    padding: 5px 8px;
+    font-size: 11px;
+    color: #b0b0b0;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.15s;
+    line-height: 1.3;
+    display: flex;
+    gap: 6px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sub-selector-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .sub-selector-item.active {
+    background: #e94560;
+    color: #fff;
+  }
+  .sub-selector-time {
+    font-size: 10px;
+    color: #777;
+    flex-shrink: 0;
+    min-width: 50px;
+    font-variant-numeric: tabular-nums;
+  }
+  .sub-selector-item.active .sub-selector-time {
+    color: rgba(255, 255, 255, 0.7);
+  }
+  .sub-selector-text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   /* Toast / custom alert */
@@ -449,7 +505,10 @@
     <video id="videoElem" playsinline webkit-playsinline></video>
   </div>
 
-  <div class="sub-overlay" id="subOverlay"></div>
+  <div class="sub-panel">
+    <div class="sub-overlay" id="subOverlay"></div>
+    <div class="sub-selector" id="subSelector"></div>
+  </div>
 
   <div class="time-row">
     <span class="time-current" id="timeCurrent">00:00</span>
@@ -509,6 +568,7 @@
   const subSelect = document.getElementById('subSelect');
   const speedSelect = document.getElementById('speedSelect');
   const subOverlay = document.getElementById('subOverlay');
+      const subSelector = document.getElementById('subSelector');
 
   const playlist = [];
   let currentIndex = -1;
@@ -525,6 +585,7 @@
   const subTracks = []; // { label, language, blobUrl, embedded }
   let subBlobUrls = [];
   let lastCueText = ''; // track current cue to avoid re-rendering on every timeupdate
+      let activeCueIdx = -1; // track highlighted cue in selector
 
   function showToast(msg, duration = 3000) {
     const overlay = document.createElement('div');
@@ -549,6 +610,15 @@
     loopMode = (loopMode + 1) % 3;
     updateLoopBtn();
   });
+
+  function fmtFull(seconds) {
+    if (!isFinite(seconds) || seconds < 0) return '00:00';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    if (h > 0) return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
 
   function fmtTime(seconds) {
     if (!isFinite(seconds) || seconds < 0) return '00:00';
@@ -583,9 +653,11 @@
       const t = subTracks.find(s => s._active);
       if (t && t._cues) {
         const ct = media.currentTime;
-        const cue = t._cues.find(c => ct >= c.start && ct < c.end);
+        const cueIdx = t._cues.findIndex(c => ct >= c.start && ct < c.end);
+        const cue = cueIdx >= 0 ? t._cues[cueIdx] : null;
         let newText = '';
         if (cue) {
+          highlightCue(cueIdx);
           // Split into sentences: first try 。！？, then by spaces
           let sentences = cue.text.split(/(?<=[。！？])/).filter(s => s.trim());
           if (sentences.length <= 1) {
@@ -598,6 +670,8 @@
             const idx = Math.min(Math.floor(progress * sentences.length), sentences.length - 1);
             newText = sentences[idx];
           }
+        } else {
+          highlightCue(-1);
         }
         if (newText !== lastCueText) {
           lastCueText = newText;
@@ -614,6 +688,7 @@
           subOverlay.style.textAlignLast = wrapH > singleH ? 'left' : 'center';
         }
       } else {
+        highlightCue(-1);
         if (lastCueText !== '') {
           lastCueText = '';
           subOverlay.textContent = '';
@@ -722,6 +797,45 @@
     return cues;
   }
 
+  // ── Subtitle selector (scrollable cue list) ──
+  function renderSubSelector() {
+    subSelector.innerHTML = '';
+    activeCueIdx = -1;
+    const t = subTracks.find(s => s._active);
+    if (!t || !t._cues || t._cues.length === 0) return;
+    t._cues.forEach((cue, i) => {
+      const div = document.createElement('div');
+      div.className = 'sub-selector-item';
+      div.dataset.index = i;
+      div.dataset.start = cue.start;
+      div.innerHTML = '<span class="sub-selector-time">' + fmtFull(cue.start) + '</span>'
+        + '<span class="sub-selector-text">' + cue.text.replace(/\n/g, ' ') + '</span>';
+      div.addEventListener('click', () => {
+        if (media && isFinite(media.duration)) {
+          media.currentTime = cue.start;
+          subOverlay.textContent = cue.text.replace(/\n/g, ' ');
+          lastCueText = cue.text.replace(/\n/g, ' ');
+          highlightCue(i);
+        }
+      });
+      subSelector.appendChild(div);
+    });
+  }
+
+  function highlightCue(idx) {
+    if (idx === activeCueIdx) return;
+    const old = subSelector.querySelector('.sub-selector-item.active');
+    if (old) old.classList.remove('active');
+    if (idx >= 0) {
+      const el = subSelector.querySelector('[data-index="' + idx + '"]');
+      if (el) {
+        el.classList.add('active');
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+    activeCueIdx = idx;
+  }
+
   // ── Add a subtitle track ──
   function addSubTrack(label, language, vttText) {
     const cues = !isVideo ? parseVttCues(vttText) : null;
@@ -743,17 +857,20 @@
 
     subTracks.push({ label, language, blobUrl: url, embedded: true, trackEl: track, _cues: cues, _active: active });
     updateSubUI();
+    if (active) renderSubSelector();
   }
 
   // ── Update subtitle selector ──
   function updateSubUI() {
     if (currentIndex < 0) {
+      subSelector.innerHTML = ''; activeCueIdx = -1;
       return;
     }
 
     btnSub.style.display = '';
     if (subTracks.length === 0) {
       subSelect.style.display = 'none';
+      subSelector.innerHTML = ''; activeCueIdx = -1;
       return;
     }
     subSelect.style.display = '';
@@ -784,6 +901,7 @@
     const activeIdx = subTracks.findIndex(t => t._active);
     if (activeIdx >= 0) subSelect.value = String(activeIdx);
     else subSelect.value = '-1';
+    if (active) renderSubSelector(); else { subSelector.innerHTML = ''; activeCueIdx = -1; }
   }
 
   // ── Switch subtitle track ──
@@ -819,6 +937,7 @@
     btnSub.textContent = '字幕';
     subOverlay.textContent = '';
     lastCueText = '';
+    subSelector.innerHTML = ''; activeCueIdx = -1;
   }
 
   // ── Extract MP4 embedded subtitles ──
