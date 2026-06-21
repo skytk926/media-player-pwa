@@ -57,12 +57,12 @@
     color: #888;
     letter-spacing: 3px;
     text-transform: uppercase;
-    margin-bottom: clamp(10px, 1.5vw, 16px);
+    margin-bottom: clamp(4px, 1vw, 10px);
     flex-shrink: 0;
   }
 
   .file-area {
-    margin-bottom: clamp(8px, 1.2vw, 12px);
+    margin-bottom: clamp(4px, 0.8vw, 8px);
     display: flex;
     gap: clamp(6px, 1.2vw, 10px);
     align-items: center;
@@ -108,8 +108,8 @@
   /* Playlist */
   .playlist {
     list-style: none;
-    margin-bottom: clamp(8px, 1.2vw, 12px);
-    max-height: clamp(50px, 11vh, 120px);
+    margin-bottom: clamp(4px, 0.8vw, 8px);
+    max-height: clamp(40px, 9vh, 100px);
     overflow-y: auto;
     border-radius: 8px;
     background: #0a1628;
@@ -172,7 +172,7 @@
   /* Video container */
   .video-container {
     display: none;
-    margin-bottom: clamp(8px, 1.2vw, 12px);
+    margin-bottom: clamp(4px, 0.8vw, 8px);
     border-radius: 10px;
     overflow: hidden;
     background: #000;
@@ -242,7 +242,7 @@
     display: flex;
     align-items: center;
     gap: clamp(6px, 1vw, 10px);
-    margin-bottom: clamp(8px, 1.2vw, 12px);
+    margin-bottom: clamp(4px, 0.8vw, 8px);
     flex-shrink: 0;
   }
   .subtitle-bar.hidden { visibility: hidden; }
@@ -378,7 +378,7 @@
     text-align-last: left;
     padding: clamp(20px, 4vw, 36px) clamp(20px, 4vw, 36px) clamp(12px, 2vw, 20px);
     flex: 8 1 0px;
-    min-height: 265px;
+    min-height: 160px;
     max-height: none;
     overflow: auto;
     line-height: 1.5;
@@ -397,8 +397,8 @@
 
   .sub-selector {
     flex: 3 0 0px;
-    min-height: 120px;
-    max-height: 45vh;
+    min-height: 80px;
+    max-height: 38vh;
     overflow-y: auto;
     background: rgba(0, 0, 0, 0.75);
     border-top: 2px solid rgba(255,255,255,0.12);
