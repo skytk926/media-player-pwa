@@ -365,8 +365,8 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    align-items: center;
-    text-align: center;
+    align-items: flex-start;
+    text-align: left;
     padding: clamp(28px, 6vw, 48px) clamp(20px, 4vw, 36px);
     margin: 8px 0;
     flex: 1 1 auto;
@@ -462,6 +462,16 @@
     <button class="btn-sub" id="btnSub" title="字幕ファイルを読込">字幕</button>
     <input type="file" id="subFileInput" style="position:absolute;width:0.1px;height:0.1px;opacity:0;overflow:hidden;z-index:-1">
     <select class="sub-select" id="subSelect"></select>
+    <select class="sub-select" id="speedSelect" style="max-width:72px;flex:0 0 auto">
+      <option value="0.5">0.5x</option>
+      <option value="0.7">0.7x</option>
+      <option value="0.8">0.8x</option>
+      <option value="0.9">0.9x</option>
+      <option value="1" selected>1x</option>
+      <option value="1.25">1.25x</option>
+      <option value="1.5">1.5x</option>
+      <option value="2">2x</option>
+    </select>
   </div>
 
   <div class="bottom-row">
@@ -497,6 +507,7 @@
   const btnSub = document.getElementById('btnSub');
   const subFileInput = document.getElementById('subFileInput');
   const subSelect = document.getElementById('subSelect');
+  const speedSelect = document.getElementById('speedSelect');
   const subOverlay = document.getElementById('subOverlay');
 
   const playlist = [];
@@ -554,6 +565,7 @@
       media.removeEventListener('ended', onEnded);
     }
     media = el;
+    media.playbackRate = parseFloat(speedSelect.value);
     media.addEventListener('timeupdate', onTimeUpdate);
     media.addEventListener('loadedmetadata', onLoaded);
     media.addEventListener('ended', onEnded);
@@ -1375,6 +1387,10 @@
 
   progressSlider.addEventListener('change', () => {
     dragging = false;
+  });
+
+  speedSelect.addEventListener('change', () => {
+    if (media) media.playbackRate = parseFloat(speedSelect.value);
   });
 
   if ('serviceWorker' in navigator) {
