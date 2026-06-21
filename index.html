@@ -1025,7 +1025,7 @@
   // ── External subtitle file selection ──
   btnSub.addEventListener('click', () => {
     if (subTracks.length === 0) {
-      showSubSourceMenu();
+      subFileInput.click();
     } else {
       const anyActive = subTracks.some(t => t._active);
       if (anyActive) {
