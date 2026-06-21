@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>字幕テスト v3</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background:#1a1a2e; color:#fff; font-family:-apple-system,sans-serif; padding:16px; }
+  h2 { text-align:center; font-size:16px; color:#888; margin-bottom:12px; }
+
+  .row { display:flex; gap:10px; justify-content:center; margin-bottom:12px; }
+  label { display:flex; align-items:center; gap:6px; background:#0f3460; padding:12px 18px; border-radius:12px; font-size:15px; font-weight:600; cursor:pointer; }
+
+  .sub-box {
+    display:flex; align-items:center; justify-content:flex-start;
+    min-height:140px; max-height:320px; overflow:hidden;
+    background:rgba(0,0,0,0.7); border-radius:24px;
+    padding:32px 28px; margin:12px auto; max-width:560px;
+    font-size:44px; line-height:1.5; text-align:center; text-align-last:left;
+    word-break:break-word;
+  }
+
+  .info { text-align:center; color:#888; font-size:13px; margin:4px 0; }
+  .debug { background:#0a1628; border-radius:12px; padding:12px; margin:10px auto; max-width:520px; font-size:12px; color:#aaa; max-height:200px; overflow-y:auto; }
+
+  button { border:none; border-radius:12px; font-size:17px; font-weight:600; cursor:pointer; padding:14px 28px; color:#fff; }
+  .btn-play { background:#e94560; }
+  .btn-pause { background:#0f3460; }
+</style>
+</head>
+<body>
+
+<h2>🔬 字幕テスト v3 — デバッグ表示あり</h2>
+
+<div class="row">
+  <label>🎵 音声 <input type="file" id="audioFile" accept="audio/*" hidden></label>
+  <label>📄 字幕 <input type="file" id="subFile" hidden></label>
+</div>
+
+<div class="sub-box" id="subBox"></div>
+<div class="info" id="info">待機中</div>
+
+<div class="row">
+  <button class="btn-play" id="btnPlay">▶ 再生</button>
+  <button class="btn-pause" id="btnPause">⏸ 停止</button>
+</div>
+
+<div class="debug" id="debug"></div>
+
+<script>
+const audioFile = document.getElementById('audioFile');
+const subFile = document.getElementById('subFile');
+const subBox = document.getElementById('subBox');
+const info = document.getElementById('info');
+const btnPlay = document.getElementById('btnPlay');
+const btnPause = document.getElementById('btnPause');
+const debug = document.getElementById('debug');
+
+let audio = null, cues = [], lastText = '';
+let curCueIdx = -1, curSentIdx = -1;
+
+function log(msg) {
+  const t = new Date().toLocaleTimeString();
+  debug.innerHTML = `<div>[${t}] ${msg}</div>` + debug.innerHTML;
+  if (debug.children.length > 30) debug.lastChild.remove();
+}
+
+function fmt(s) {
+  const m = Math.floor(s/60), sec = Math.floor(s%60);
+  return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+}
+
+subFile.addEventListener('change', () => {
+  const f = subFile.files[0];
+  if (!f) return;
+  log('📄 字幕読み込み: ' + f.name);
+  const reader = new FileReader();
+  reader.onload = () => {
+    const raw = reader.result;
+    log('SRTサイズ: ' + raw.length + '文字');
+
+    // Convert SRT → VTT
+    let vtt = 'WEBVTT\n\n';
+    const blocks = raw.replace(/\r\n/g,'\n').split(/\n\n+/);
+    log('ブロック数: ' + blocks.length);
+
+    blocks.forEach(block => {
+      const lines = block.trim().split('\n');
+      if (lines.length < 3) return;
+      const m = lines[1] && lines[1].match(/([\d:,]+)\s*-->\s*([\d:,]+)/);
+      if (!m) return;
+      vtt += lines[0] + '\n';
+      vtt += m[1].replace(/,/g,'.') + ' --> ' + m[2].replace(/,/g,'.') + '\n';
+      vtt += lines.slice(2).join(' ') + '\n\n';
+    });
+
+    // Parse VTT
+    const parsed = [];
+    const vttLines = vtt.split('\n');
+    let i = 0;
+    while (i < vttLines.length && !vttLines[i].includes('-->')) i++;
+    while (i < vttLines.length) {
+      const tm = vttLines[i].trim().match(
+        /^(\d{2,}):(\d{2}):(\d{2})[.,](\d{3})\s*-->\s*(\d{2,}):(\d{2}):(\d{2})[.,](\d{3})/
+      );
+      if (tm) {
+        const start = parseInt(tm[1])*3600+parseInt(tm[2])*60+parseInt(tm[3])+parseInt(tm[4])/1000;
+        const end   = parseInt(tm[5])*3600+parseInt(tm[6])*60+parseInt(tm[7])+parseInt(tm[8])/1000;
+        let text = '';
+        i++;
+        while (i < vttLines.length && vttLines[i].trim()!=='' && !vttLines[i].includes('-->')) {
+          if (text) text += ' ';
+          text += vttLines[i].trim();
+          i++;
+        }
+        if (text) parsed.push({ start, end, text });
+      } else i++;
+    }
+
+    cues = parsed;
+    lastText = ''; curCueIdx = -1; curSentIdx = -1;
+    subBox.textContent = '';
+    log('✅ 解析完了: ' + cues.length + '件のキュー');
+
+    // Show first 5 cues for debug
+    cues.slice(0,5).forEach((c,i) => {
+      const s = splitText(c.text);
+      log(`Cue${i+1} [${fmt(c.start)}→${fmt(c.end)}] ${s.length}文: ${s.join(' | ')}`);
+    });
+  };
+  reader.readAsText(f);
+});
+
+function splitText(text) {
+  let parts = text.split(/(?<=[。！？])/).filter(s => s.trim());
+  if (parts.length <= 1) parts = text.split(/\s+/).filter(s => s.trim());
+  return parts.length > 1 ? parts : [text];
+}
+
+audioFile.addEventListener('change', () => {
+  const f = audioFile.files[0];
+  if (!f) return;
+  if (audio) { audio.pause(); URL.revokeObjectURL(audio.src); }
+  audio = new Audio(URL.createObjectURL(f));
+  log('🎵 音声読み込み: ' + f.name + ' (' + (f.size/1024/1024).toFixed(1) + 'MB)');
+
+  audio.addEventListener('timeupdate', () => {
+    if (!audio || !cues.length) return;
+    const ct = audio.currentTime;
+    info.textContent = '⏱ ' + fmt(ct);
+
+    const cueIdx = cues.findIndex(c => ct >= c.start && ct < c.end);
+    let newText = '';
+    let sentIdx = -1;
+    let splitInfo = '';
+
+    if (cueIdx >= 0) {
+      const cue = cues[cueIdx];
+      const sentences = splitText(cue.text);
+      sentIdx = 0;
+
+      if (sentences.length > 1) {
+        const progress = (ct - cue.start) / (cue.end - cue.start);
+        sentIdx = Math.min(Math.floor(progress * sentences.length), sentences.length - 1);
+        newText = sentences[sentIdx];
+        splitInfo = ` (${sentIdx+1}/${sentences.length}文目)`;
+      } else {
+        newText = cue.text;
+      }
+    }
+
+    if (newText !== lastText) {
+      lastText = newText;
+      subBox.textContent = newText;
+      if (cueIdx !== curCueIdx || sentIdx !== curSentIdx) {
+        curCueIdx = cueIdx;
+        curSentIdx = sentIdx;
+        log(`📝 Cue${cueIdx+1}${splitInfo}: "${newText}"`);
+      }
+    }
+  });
+});
+
+btnPlay.addEventListener('click', () => { if (audio) { audio.play(); log('▶ 再生'); } });
+btnPause.addEventListener('click', () => { if (audio) { audio.pause(); log('⏸ 停止'); } });
+</script>
+</body>
+</html>
