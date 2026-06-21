@@ -117,6 +117,76 @@ async def transcribe(request: Request):
         gc.collect()
 
 
+@app.get("/vtt-list")
+async def list_vtt():
+    """List all VTT/VTT subtitle files available for loading."""
+    import glob
+    vtt_files = []
+    # Scan project directory and common subdirectories for subtitle files
+    patterns = ["*.vtt", "*.srt", "*.ass", "*.ssa"]
+    for pattern in patterns:
+        for path in glob.glob(os.path.join(BASE_DIR, pattern)):
+            name = os.path.basename(path)
+            size = os.path.getsize(path)
+            vtt_files.append({
+                "name": name,
+                "url": "/" + name,
+                "size": size,
+            })
+    # Sort by name
+    vtt_files.sort(key=lambda f: f["name"])
+    return JSONResponse({"files": vtt_files})
+
+
+@app.get("/media-list")
+async def list_media():
+    """List all audio/video media files available for streaming."""
+    import glob
+    media_files = []
+    patterns = [
+        "*.mp3", "*.mp4", "*.m4a", "*.aac", "*.wav", "*.flac",
+        "*.ogg", "*.oga", "*.ogv", "*.opus",
+        "*.webm", "*.mov", "*.mkv", "*.avi",
+        "*.wma", "*.wmv", "*.3gp", "*.mpeg", "*.mpg", "*.ts", "*.m2ts"
+    ]
+    video_exts = {".mp4", ".mov", ".mkv", ".avi", ".webm", ".ogv", ".wmv", ".3gp", ".mpg", ".mpeg", ".ts", ".m2ts"}
+    for pattern in patterns:
+        for path in glob.glob(os.path.join(BASE_DIR, pattern)):
+            name = os.path.basename(path)
+            ext = os.path.splitext(name)[1].lower()
+            size = os.path.getsize(path)
+            media_files.append({
+                "name": name,
+                "url": "/" + name,
+                "size": size,
+                "isVideo": ext in video_exts,
+            })
+    # Sort by name
+    media_files.sort(key=lambda f: f["name"])
+    return JSONResponse({"files": media_files})
+
+
+@app.post("/save-vtt")
+async def save_vtt(request: Request):
+    """Save VTT content as a file on the server (accessible for loading)."""
+    try:
+        body = await request.json()
+        filename = body.get("filename", "subtitle.vtt")
+        content = body.get("content", "")
+        # Sanitize filename: allow only safe characters
+        safe_name = "".join(c for c in filename if c.isalnum() or c in "._- ")
+        if not safe_name or not safe_name.strip():
+            safe_name = "subtitle.vtt"
+        if not safe_name.endswith(".vtt"):
+            safe_name = safe_name.rsplit(".", 1)[0] + ".vtt" if "." in safe_name else safe_name + ".vtt"
+        vtt_path = os.path.join(BASE_DIR, safe_name)
+        with open(vtt_path, "w") as f:
+            f.write(content)
+        return JSONResponse({"ok": True, "filename": safe_name, "url": "/" + safe_name})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+
+
 @app.get("/health")
 async def health():
     import socket

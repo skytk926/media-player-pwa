@@ -14,7 +14,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="プレーヤー">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon.png">
 
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -187,7 +187,7 @@
   /* Subtitle cue styling */
   video::cue {
     color: #fff;
-    font-size: clamp(28px, 4vw, 36px);
+    font-size: clamp(56px, 8vw, 72px);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     text-shadow: 0 0 4px #000, 0 0 4px #000, 1px 1px 2px #000;
     background: rgba(0,0,0,0.6);
@@ -360,16 +360,35 @@
   .btn-skip:hover { background: #1a4a80; }
 
   .sub-overlay {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
     text-align: center;
-    padding: clamp(16px, 3vw, 28px) clamp(24px, 4vw, 40px);
+    padding: clamp(32px, 6vw, 56px) clamp(48px, 8vw, 80px);
     margin: 8px 0;
-    min-height: clamp(72px, 10vw, 96px);
+    min-height: clamp(144px, 20vw, 192px);
     line-height: 1.5;
-    font-size: clamp(28px, 4vw, 36px);
+    font-size: clamp(56px, 8vw, 72px);
     color: #fff;
     background: rgba(0, 0, 0, 0.65);
-    border-radius: 16px;
+    border-radius: 32px;
     white-space: pre-line;
+    user-select: text;
+    -webkit-user-select: text;
+    -webkit-touch-callout: default;
+    cursor: pointer;
+  }
+  .sub-overlay.first-cue {
+    justify-content: flex-start;
+  }
+  .sub-prev {
+    color: #888;
+    font-size: 0.7em;
+    margin-bottom: 6px;
+  }
+  .sub-curr {
+    color: #fff;
   }
 
   /* Toast / custom alert */
@@ -426,7 +445,7 @@
   <div class="file-area">
     <div class="file-name" id="fileName">ファイル未選択</div>
     <button class="btn btn-open" id="btnOpen">開く</button>
-    <input type="file" id="fileInput" accept="audio/*,video/*,.wav,.mp3,.mp4,.m4a,.aac,.flac,.ogg,.webm,.mov,.mkv,.avi" multiple hidden>
+    <input type="file" id="fileInput" multiple hidden>
   </div>
 
   <ul class="playlist" id="playlist"></ul>
@@ -551,17 +570,26 @@
     }
     timeCurrent.textContent = fmtTime(media.currentTime);
 
-    // Audio subtitle overlay: manually find active cue via parsed VTT
+    // Audio subtitle overlay: show current cue + up to 2 previous cues
     if (!isVideo && subTracks.length > 0) {
       const t = subTracks.find(s => s._active);
       if (t && t._cues) {
         const ct = media.currentTime;
-        const cue = t._cues.find(c => ct >= c.start && ct < c.end);
-        if (cue) {
-          subOverlay.textContent = cue.text;
+        const idx = t._cues.findIndex(c => ct >= c.start && ct < c.end);
+        if (idx >= 0) {
+          const prevCues = t._cues.slice(Math.max(0, idx - 2), idx);
+          let html = '';
+          for (const c of prevCues) {
+            html += `<div class="sub-prev">${c.text}</div>`;
+          }
+          html += `<div class="sub-curr">${t._cues[idx].text}</div>`;
+          subOverlay.innerHTML = html;
+          subOverlay.classList.toggle('first-cue', idx === 0);
         } else {
+          subOverlay.innerHTML = '';
         }
       } else {
+        subOverlay.innerHTML = '';
       }
     }
   }
@@ -885,10 +913,119 @@
     });
   }
 
+  // ── Fetch VTT from server URL ──
+  async function loadSubFromUrl(url, label) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      const ext = url.split('.').pop().toLowerCase().split('?')[0];
+      let vtt;
+      if (ext === 'vtt') {
+        vtt = text.startsWith('WEBVTT') ? text : 'WEBVTT\n\n' + text;
+      } else if (ext === 'srt') {
+        vtt = srtToVtt(text);
+      } else if (ext === 'ass' || ext === 'ssa') {
+        vtt = assToVtt(text);
+      }
+      if (vtt && vtt !== 'WEBVTT\n\n') {
+        addSubTrack(label, '', vtt);
+        return true;
+      }
+      showToast('字幕データが空です。');
+      return false;
+    } catch (e) {
+      showToast('字幕の読込に失敗しました。<br>' + e.message);
+      return false;
+    }
+  }
+
+  // ── Show subtitle source selection popup ──
+  async function showSubSourceMenu() {
+    const overlay = document.createElement('div');
+    overlay.className = 'toast-overlay';
+    overlay.id = 'subSourceOverlay';
+
+    let serverFilesHtml = '<div style="text-align:left;margin:8px 0;color:#888;font-size:14px">サーバー確認中...</div>';
+
+    overlay.innerHTML = `
+      <div class="toast-box" style="padding:24px 20px;max-width:min(90%,400px)">
+        <div style="font-size:18px;font-weight:600;margin-bottom:16px">字幕を読み込む</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="toast-btn" id="subSourceDevice" style="margin:0;background:#0f3460;font-size:15px">
+            📱 端末から選択
+          </button>
+          <div style="border-top:1px solid #333;margin:8px 0"></div>
+          <div id="serverFilesSection" style="max-height:180px;overflow-y:auto">
+            ${serverFilesHtml}
+          </div>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <input type="text" id="subUrlInput" placeholder="URLを入力..."
+              style="flex:1;background:#0f3460;border:none;border-radius:8px;color:#e0e0e0;font-size:13px;padding:8px 10px">
+            <button class="toast-btn" id="subSourceUrl" style="margin:0;font-size:13px;padding:8px 16px;white-space:nowrap">
+              読込
+            </button>
+          </div>
+        </div>
+        <button class="toast-btn" id="subSourceCancel" style="margin:16px auto 0;background:#444;font-size:14px">
+          キャンセル
+        </button>
+      </div>`;
+
+    document.body.appendChild(overlay);
+
+    const close = () => overlay.remove();
+
+    // Cancel
+    overlay.querySelector('#subSourceCancel').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+    // Device file picker
+    overlay.querySelector('#subSourceDevice').addEventListener('click', () => {
+      close();
+      subFileInput.click();
+    });
+
+    // URL input
+    overlay.querySelector('#subSourceUrl').addEventListener('click', async () => {
+      const url = overlay.querySelector('#subUrlInput').value.trim();
+      if (!url) { showToast('URLを入力してください。'); return; }
+      close();
+      const label = url.split('/').pop() || '字幕';
+      await loadSubFromUrl(url, label);
+    });
+
+    // Fetch server VTT list
+    try {
+      const res = await fetch('/vtt-list');
+      const data = await res.json();
+      const section = overlay.querySelector('#serverFilesSection');
+      if (data.files && data.files.length > 0) {
+        section.innerHTML = '<div style="color:#888;font-size:12px;margin-bottom:4px">📂 サーバー上の字幕ファイル</div>';
+        data.files.forEach(f => {
+          const btn = document.createElement('button');
+          btn.className = 'toast-btn';
+          btn.style.cssText = 'margin:2px 0;background:#1a4a80;font-size:13px;display:block;width:100%;text-align:left;padding:8px 12px';
+          btn.textContent = '📄 ' + f.name;
+          btn.addEventListener('click', async () => {
+            close();
+            await loadSubFromUrl(f.url, f.name);
+          });
+          section.appendChild(btn);
+        });
+      } else {
+        section.innerHTML = '<div style="color:#666;font-size:13px;text-align:center;padding:8px">サーバーに字幕ファイルがありません</div>';
+      }
+    } catch {
+      const section = overlay.querySelector('#serverFilesSection');
+      section.innerHTML = '<div style="color:#666;font-size:13px;text-align:center;padding:8px">サーバー未接続</div>';
+    }
+  }
+
   // ── External subtitle file selection ──
   btnSub.addEventListener('click', () => {
     if (subTracks.length === 0) {
-      subFileInput.click();
+      showSubSourceMenu();
     } else {
       const anyActive = subTracks.some(t => t._active);
       if (anyActive) {
@@ -1048,19 +1185,141 @@
     renderPlaylist();
   }
 
-  btnOpen.addEventListener('click', () => fileInput.click());
+  // ── Supported media extensions ──
+  const MEDIA_EXTS = /\.(wav|mp3|mp4|m4a|aac|flac|ogg|webm|mov|mkv|avi|wma|wmv|3gp|opus|oga|ogv|mpeg|mpg|ts|m2ts)$/i;
+  const SUB_EXTS = /\.(srt|vtt|ass|ssa)$/i;
 
-  fileInput.addEventListener('change', () => {
-    const files = Array.from(fileInput.files).filter(f => !/\.(srt|vtt)$/i.test(f.name));
-    if (files.length === 0) return;
+  // ── Show media source selection popup ──
+  async function showMediaSourceMenu() {
+    const overlay = document.createElement('div');
+    overlay.className = 'toast-overlay';
+    overlay.id = 'mediaSourceOverlay';
 
-    files.forEach((file) => {
-      const objectUrl = URL.createObjectURL(file);
-      playlist.push({ file, objectUrl, name: file.name });
+    let serverFilesHtml = '<div style="text-align:left;margin:8px 0;color:#888;font-size:14px">サーバー確認中...</div>';
+
+    overlay.innerHTML = `
+      <div class="toast-box" style="padding:24px 20px;max-width:min(90%,400px)">
+        <div style="font-size:18px;font-weight:600;margin-bottom:16px">メディアを開く</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="toast-btn" id="mediaSourceDevice" style="margin:0;background:#0f3460;font-size:15px">
+            📱 端末から選択（複数可）
+          </button>
+          <div style="border-top:1px solid #333;margin:8px 0"></div>
+          <div id="mediaServerFilesSection" style="max-height:180px;overflow-y:auto">
+            ${serverFilesHtml}
+          </div>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <input type="text" id="mediaUrlInput" placeholder="音声/動画のURLを入力..."
+              style="flex:1;background:#0f3460;border:none;border-radius:8px;color:#e0e0e0;font-size:13px;padding:8px 10px">
+            <button class="toast-btn" id="mediaSourceUrl" style="margin:0;font-size:13px;padding:8px 16px;white-space:nowrap">
+              読込
+            </button>
+          </div>
+        </div>
+        <button class="toast-btn" id="mediaSourceCancel" style="margin:16px auto 0;background:#444;font-size:14px">
+          キャンセル
+        </button>
+      </div>`;
+
+    document.body.appendChild(overlay);
+
+    const close = () => overlay.remove();
+
+    overlay.querySelector('#mediaSourceCancel').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+    // Device file picker
+    overlay.querySelector('#mediaSourceDevice').addEventListener('click', () => {
+      close();
+      fileInput.click();
     });
 
+    // URL input
+    overlay.querySelector('#mediaSourceUrl').addEventListener('click', async () => {
+      const url = overlay.querySelector('#mediaUrlInput').value.trim();
+      if (!url) { showToast('URLを入力してください。'); return; }
+      close();
+      await loadMediaFromUrl(url);
+    });
+
+    // Fetch server media list
+    try {
+      const res = await fetch('/media-list');
+      const data = await res.json();
+      const section = overlay.querySelector('#mediaServerFilesSection');
+      if (data.files && data.files.length > 0) {
+        section.innerHTML = '<div style="color:#888;font-size:12px;margin-bottom:4px">📂 サーバー上の音声/動画</div>';
+        data.files.forEach(f => {
+          const btn = document.createElement('button');
+          btn.className = 'toast-btn';
+          btn.style.cssText = 'margin:2px 0;background:#1a4a80;font-size:13px;display:block;width:100%;text-align:left;padding:8px 12px';
+          const icon = f.isVideo ? '🎬' : '🎵';
+          btn.textContent = icon + ' ' + f.name;
+          btn.addEventListener('click', async () => {
+            close();
+            await loadMediaFromUrl(f.url, f.name);
+          });
+          section.appendChild(btn);
+        });
+      } else {
+        section.innerHTML = '<div style="color:#666;font-size:13px;text-align:center;padding:8px">サーバーにメディアファイルがありません</div>';
+      }
+    } catch {
+      const section = overlay.querySelector('#mediaServerFilesSection');
+      section.innerHTML = '<div style="color:#666;font-size:13px;text-align:center;padding:8px">サーバー未接続</div>';
+    }
+  }
+
+  // ── Load media from URL ──
+  async function loadMediaFromUrl(url, label) {
+    const name = label || url.split('/').pop().split('?')[0] || 'media';
+    const isVideoFile = /\.(mp4|mov|mkv|avi|webm|ogv|ts|m2ts)$/i.test(name);
+    const fakeFile = { type: isVideoFile ? 'video/mp4' : 'audio/mp3' };
+
+    // For same-origin URLs we can use the URL directly
+    const objectUrl = url;
+    playlist.push({ file: fakeFile, objectUrl, name: name });
+
     if (currentIndex === -1) {
-      currentIndex = playlist.length - files.length;
+      currentIndex = playlist.length - 1;
+      loadFile(currentIndex);
+    }
+
+    updateFileCount();
+    renderPlaylist();
+  }
+
+  btnOpen.addEventListener('click', () => showMediaSourceMenu());
+
+  fileInput.addEventListener('change', () => {
+    const files = Array.from(fileInput.files).filter(f => !SUB_EXTS.test(f.name));
+    if (files.length === 0) return;
+
+    let addedCount = 0;
+
+    // Check for unsupported formats
+    const unsupported = files.filter(f => !MEDIA_EXTS.test(f.name));
+    if (unsupported.length > 0) {
+      const names = unsupported.map(f => f.name).join(', ');
+      showToast('未対応の形式です:<br>' + names + '<br><br>対応形式: WAV, MP3, MP4, M4A, AAC, FLAC, OGG, WebM, MOV, MKV, AVI 等');
+      // Still add supported files only
+      const supported = files.filter(f => MEDIA_EXTS.test(f.name));
+      if (supported.length === 0) { fileInput.value = ''; return; }
+      supported.forEach((file) => {
+        const objectUrl = URL.createObjectURL(file);
+        playlist.push({ file, objectUrl, name: file.name });
+      });
+      addedCount = supported.length;
+    } else {
+      files.forEach((file) => {
+        const objectUrl = URL.createObjectURL(file);
+        playlist.push({ file, objectUrl, name: file.name });
+      });
+      addedCount = files.length;
+    }
+
+    if (currentIndex === -1) {
+      currentIndex = playlist.length - addedCount;
       loadFile(currentIndex);
     }
 
@@ -1109,6 +1368,76 @@
   progressSlider.addEventListener('change', () => {
     dragging = false;
   });
+
+  // ── Long press on subtitle overlay to copy ──
+  (function setupSubOverlayCopy() {
+    let longPressTimer = null;
+    let touchStartX = 0, touchStartY = 0;
+
+    function getVisibleText() {
+      // Collect text from all visible subtitle cues
+      const lines = [];
+      const prevEls = subOverlay.querySelectorAll('.sub-prev');
+      const currEl = subOverlay.querySelector('.sub-curr');
+      prevEls.forEach(el => { if (el.textContent.trim()) lines.push(el.textContent.trim()); });
+      if (currEl && currEl.textContent.trim()) lines.push(currEl.textContent.trim());
+      // Fallback: use textContent of the whole overlay
+      if (lines.length === 0 && subOverlay.textContent.trim()) {
+        lines.push(subOverlay.textContent.trim());
+      }
+      return lines.join('\n');
+    }
+
+    async function copySubText() {
+      const text = getVisibleText();
+      if (!text) return;
+
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast('📋 コピーしました');
+      } catch {
+        // Fallback for older browsers / non-HTTPS
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;left:-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); showToast('📋 コピーしました'); } catch {}
+        document.body.removeChild(ta);
+      }
+    }
+
+    subOverlay.addEventListener('touchstart', (e) => {
+      if (!getVisibleText()) return;
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      longPressTimer = setTimeout(() => {
+        longPressTimer = null;
+        copySubText();
+      }, 500);
+    }, { passive: true });
+
+    subOverlay.addEventListener('touchend', () => {
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+    });
+
+    subOverlay.addEventListener('touchmove', (e) => {
+      if (!longPressTimer) return;
+      const dx = e.touches[0].clientX - touchStartX;
+      const dy = e.touches[0].clientY - touchStartY;
+      // Cancel long press if finger moves too much
+      if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+    }, { passive: true });
+
+    // Also support right-click / Ctrl+click on desktop
+    subOverlay.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      copySubText();
+    });
+  })();
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js');

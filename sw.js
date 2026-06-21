@@ -1,6 +1,6 @@
-const CACHE = 'player-v4';
+const CACHE = 'player-v6';
 const ASSETS = [
-  '/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png',
+  '/', '/index.html', '/manifest.json', '/icon.png',
   'https://cdn.jsdelivr.net/npm/mp4box@0.5.3/dist/mp4box.all.min.js'
 ];
 

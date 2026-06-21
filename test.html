@@ -17,6 +17,7 @@
 <input type="file" id="file" accept="audio/*,video/*" style="display:none">
 <button id="btn">ファイルを選んで字幕生成</button>
 <div id="result" style="margin-top:20px;font-size:14px;max-height:200px;overflow:auto;width:90%"></div>
+<div id="saveSection" style="margin-top:16px;display:none"></div>
 
 <script>
 const icon = document.getElementById('icon');
@@ -24,6 +25,10 @@ const msg = document.getElementById('msg');
 const btn = document.getElementById('btn');
 const fileInput = document.getElementById('file');
 const result = document.getElementById('result');
+const saveSection = document.getElementById('saveSection');
+
+let lastSegments = [];
+let lastFileName = '';
 
 // Health check
 fetch('/health').then(r => r.json()).then(d => {
@@ -41,6 +46,7 @@ fileInput.addEventListener('change', async () => {
   if (!file) return;
   btn.textContent = '送信中...';
   btn.disabled = true;
+  saveSection.style.display = 'none';
   try {
     const res = await fetch('/transcribe', {
       method: 'POST',
@@ -48,8 +54,54 @@ fileInput.addEventListener('change', async () => {
       headers: { 'Content-Type': 'application/octet-stream', 'X-Filename': encodeURIComponent(file.name) }
     });
     const data = await res.json();
+    lastSegments = data.segments || [];
+    lastFileName = file.name;
     result.textContent = data.segments.map(s => '[' + s.start + 's] ' + s.text).join('\n') || '(無音声)';
     msg.textContent = '字幕生成完了: ' + data.segments.length + '件';
+
+    // Show save button for VTT
+    if (lastSegments.length > 0) {
+      saveSection.style.display = 'block';
+      saveSection.innerHTML = `
+        <button id="saveVttBtn" style="padding:12px 24px;font-size:16px;border:none;border-radius:12px;background:#4caf50;color:#fff;cursor:pointer">
+          💾 VTTファイルをサーバーに保存
+        </button>
+        <div id="saveStatus" style="margin-top:8px;font-size:13px;color:#888"></div>
+      `;
+      document.getElementById('saveVttBtn').addEventListener('click', async () => {
+        // Build VTT content from segments
+        let vtt = 'WEBVTT\n\n';
+        lastSegments.forEach(seg => {
+          const ts = (s) => {
+            const h = Math.floor(s / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            const sec = Math.floor(s % 60);
+            const ms = Math.round((s - Math.floor(s)) * 1000);
+            return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0') + '.' + String(ms).padStart(3,'0');
+          };
+          vtt += ts(seg.start) + ' --> ' + ts(seg.end) + '\n';
+          vtt += seg.text + '\n\n';
+        });
+        const vttName = lastFileName.replace(/\.[^.]+$/, '') + '.vtt';
+        try {
+          const sv = await fetch('/save-vtt', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: vttName, content: vtt })
+          });
+          const svData = await sv.json();
+          if (svData.ok) {
+            document.getElementById('saveStatus').innerHTML =
+              '✅ 保存完了: <a href="' + svData.url + '" style="color:#4caf50">' + svData.filename + '</a><br>' +
+              '<span style="font-size:12px">プレーヤーで「字幕」→サーバーから選択できます</span>';
+          } else {
+            document.getElementById('saveStatus').textContent = '❌ 保存失敗: ' + svData.error;
+          }
+        } catch(e) {
+          document.getElementById('saveStatus').textContent = '❌ 保存失敗: ' + e.message;
+        }
+      });
+    }
   } catch(e) {
     result.textContent = 'エラー: ' + e.message;
     msg.textContent = '失敗';
