@@ -21,7 +21,8 @@
 
   html, body {
     height: 100%;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   body {
@@ -47,8 +48,8 @@
     box-shadow: 0 20px 60px rgba(0,0,0,0.5);
     display: flex;
     flex-direction: column;
-    max-height: 100vh;
-    max-height: -webkit-fill-available;
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
   }
 
   .player-title {
@@ -201,6 +202,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    margin-top: clamp(12px, 2vw, 20px);
     margin-bottom: clamp(4px, 0.6vw, 6px);
     flex-shrink: 0;
   }
@@ -223,6 +225,7 @@
     background: #0f3460;
     outline: none;
     cursor: pointer;
+    margin-top: 4px;
     margin-bottom: clamp(10px, 1.5vw, 14px);
     flex-shrink: 0;
   }
@@ -242,6 +245,7 @@
     display: flex;
     align-items: center;
     gap: clamp(6px, 1vw, 10px);
+    margin-top: clamp(4px, 0.6vw, 8px);
     margin-bottom: clamp(4px, 0.8vw, 8px);
     flex-shrink: 0;
   }
@@ -300,6 +304,7 @@
     align-items: center;
     justify-content: center;
     gap: clamp(8px, 1.5vw, 14px);
+    margin-top: clamp(4px, 0.6vw, 8px);
     flex-shrink: 0;
   }
 
@@ -367,6 +372,7 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+    max-height: calc(100vh - 320px);
     margin: 8px 0;
   }
 
@@ -487,6 +493,8 @@
   }
   .toast-btn:hover  { background: #d63850; }
   .toast-btn:active { transform: scale(0.96); }
+
+  .hidden { display: none !important; }
 </style>
 </head>
 <body>
@@ -536,6 +544,7 @@
 
   <div class="bottom-row">
     <button class="btn-loop" id="btnLoop" title="リピートモード">🔁</button>
+    <button class="btn-loop hidden" id="btnRepeat" title="選択字幕をリピート">🔂 重复</button>
     <div class="controls">
       <button class="btn btn-ctrl btn-skip" id="btnBackward" title="10秒戻る">−10s</button>
       <button class="btn btn-ctrl btn-play" id="btnPlay" title="再生/停止">▶</button>
@@ -587,6 +596,10 @@
   let subBlobUrls = [];
   let lastCueText = ''; // track current cue to avoid re-rendering on every timeupdate
       let activeCueIdx = -1; // track highlighted cue in selector
+      let repeatMode = 0;
+      let repeatCue = null;
+      let repeatRemaining = 0;
+      let selectedCue = null;
 
   function showToast(msg, duration = 3000) {
     const overlay = document.createElement('div');
@@ -610,6 +623,23 @@
   btnLoop.addEventListener('click', () => {
     loopMode = (loopMode + 1) % 3;
     updateLoopBtn();
+  });
+
+  btnRepeat.addEventListener('click', () => {
+    if (!selectedCue) return;
+    repeatMode = (repeatMode + 1) % 5;
+    const labels = ['🔂 オフ','🔂 1回','🔂 2回','🔂 3回','🔂 4回'];
+    btnRepeat.textContent = labels[repeatMode];
+    if (repeatMode > 0) btnRepeat.classList.add('loop-one');
+    else btnRepeat.classList.remove('loop-one');
+    if (repeatMode > 0 && selectedCue) {
+      repeatCue = { start: selectedCue.start, end: selectedCue.end };
+      repeatRemaining = repeatMode;
+      media.currentTime = selectedCue.start;
+    } else {
+      repeatCue = null;
+      repeatRemaining = 0;
+    }
   });
 
   function fmtFull(seconds) {
@@ -648,6 +678,22 @@
       progressSlider.value = (media.currentTime / media.duration) * 1000;
     }
     timeCurrent.textContent = fmtTime(media.currentTime);
+
+    // Repeat mode: loop selected cue
+    if (repeatCue && repeatRemaining > 0) {
+      if (media.currentTime >= repeatCue.end) {
+        repeatRemaining--;
+        if (repeatRemaining > 0) {
+          media.currentTime = repeatCue.start;
+        } else {
+          repeatCue = null;
+          repeatMode = 0;
+          repeatRemaining = 0;
+          btnRepeat.textContent = '🔂 重复';
+          btnRepeat.classList.remove('loop-one');
+        }
+      }
+    }
 
     // Audio subtitle overlay: split cue into sentences, show one at a time
     if (!isVideo && subTracks.length > 0) {
@@ -706,6 +752,13 @@
   }
 
   function onEnded() {
+    selectedCue = null;
+    repeatMode = 0;
+    repeatCue = null;
+    repeatRemaining = 0;
+    btnRepeat.classList.add('hidden');
+    btnRepeat.textContent = '🔂 重复';
+    btnRepeat.classList.remove('loop-one');
     if (loopMode === 1) {
       media.currentTime = 0;
       media.play().catch(() => {});
@@ -817,6 +870,14 @@
           subOverlay.textContent = cue.text.replace(/\n/g, ' ');
           lastCueText = cue.text.replace(/\n/g, ' ');
           highlightCue(i);
+          selectedCue = { start: cue.start, end: cue.end, text: cue.text };
+          btnRepeat.classList.remove('hidden');
+          repeatMode = 0;
+          repeatCue = null;
+          repeatRemaining = 0;
+          btnRepeat.textContent = '🔂 重复';
+          btnRepeat.classList.remove('loop-one');
+          media.play().then(() => { btnPlay.textContent = '⏸'; }).catch(() => {});
         }
       });
       subSelector.appendChild(div);
@@ -939,6 +1000,13 @@
     subOverlay.textContent = '';
     lastCueText = '';
     subSelector.innerHTML = ''; activeCueIdx = -1;
+    selectedCue = null;
+    repeatMode = 0;
+    repeatCue = null;
+    repeatRemaining = 0;
+    btnRepeat.classList.add('hidden');
+    btnRepeat.textContent = '🔂 重复';
+    btnRepeat.classList.remove('loop-one');
   }
 
   // ── Extract MP4 embedded subtitles ──
@@ -1269,6 +1337,13 @@
     progressSlider.value = 0;
     timeCurrent.textContent = '00:00';
     timeDuration.textContent = '00:00';
+    selectedCue = null;
+    repeatMode = 0;
+    repeatCue = null;
+    repeatRemaining = 0;
+    btnRepeat.classList.add('hidden');
+    btnRepeat.textContent = '🔂 重复';
+    btnRepeat.classList.remove('loop-one');
 
     // Try to extract embedded subtitles from MP4 files
     if (isVideoFile && /\.(mp4|m4v|mov)$/i.test(item.name)) {
