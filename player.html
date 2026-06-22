@@ -218,6 +218,7 @@
 
   <div class="bottom-row">
     <button class="btn-loop" id="btnLoop">🔁 オフ</button>
+    <button class="btn-loop hidden" id="btnRepeat">🔂 重复</button>
     <div class="controls">
       <button class="btn-ctrl" id="btnBack">−10s</button>
       <button class="btn-ctrl btn-play" id="btnPlay">▶</button>
@@ -235,13 +236,17 @@ const subOverlay = $('subOverlay'), subText = $('subText');
 const subSelector = $('subSelector');
 const subFileInput = $('subFileInput'), btnSub = $('btnSub'), subInfo = $('subInfo');
 const timeCurrent = $('timeCurrent'), timeDuration = $('timeDuration'), progressSlider = $('progressSlider');
-const btnPlay = $('btnPlay'), btnBack = $('btnBack'), btnFwd = $('btnFwd'), btnLoop = $('btnLoop');
+const btnPlay = $('btnPlay'), btnBack = $('btnBack'), btnFwd = $('btnFwd'), btnLoop = $('btnLoop'), btnRepeat = $('btnRepeat');
 const speedSelect = $('speedSelect');
 const audio = $('audioElem');
 
 let playlist = [], curIdx = -1, dragging = false, loopMode = 0;
 let subTracks = [], subBlobUrls = [], lastCueText = '';
 let activeCueIdx = -1;
+let repeatMode = 0;       // 0=off, 1-4=number of repeats for selected cue
+let repeatCue = null;    // { start, end } of the cue being repeated
+let repeatRemaining = 0; // how many times left to replay
+let selectedCue = null;   // the last sentence user clicked { start, end, text }
 
 // ── Toast ──
 function toast(msg) {
@@ -280,6 +285,14 @@ function loadFile(i) {
   audio.src = item.objectUrl; curIdx = i;
   audio.playbackRate = parseFloat(speedSelect.value);
   fileName.textContent = item.name;
+  // Reset repeat state
+  selectedCue = null;
+  repeatMode = 0;
+  repeatCue = null;
+  repeatRemaining = 0;
+  btnRepeat.classList.add('hidden');
+  btnRepeat.textContent = '🔂 重复';
+  btnRepeat.classList.remove('on');
   progressSlider.value = 0; timeCurrent.textContent = '00:00'; timeDuration.textContent = '00:00';
 }
 
@@ -290,6 +303,14 @@ function clearSubs() {
   subText.textContent = ''; lastCueText = '';
   subSelector.innerHTML = ''; activeCueIdx = -1;
   btnSub.classList.remove('on'); btnSub.textContent = '字幕'; subInfo.textContent = '';
+  // Reset repeat state
+  selectedCue = null;
+  repeatMode = 0;
+  repeatCue = null;
+  repeatRemaining = 0;
+  btnRepeat.classList.add('hidden');
+  btnRepeat.textContent = '🔂 重复';
+  btnRepeat.classList.remove('on');
 }
 
 // ── Subtitle: SRT → VTT ──
@@ -359,13 +380,27 @@ function renderSubSelector() {
     div.innerHTML = '<span class="sub-selector-time">' + fmtFull(cue.start) + '</span>'
       + '<span class="sub-selector-text">' + cue.text.replace(/\n/g,' ') + '</span>';
     div.addEventListener('click', () => {
-      if (isFinite(audio.duration)) {
-        audio.currentTime = cue.start;
-        subText.textContent = cue.text.replace(/\n/g,' ');
-        lastCueText = cue.text.replace(/\n/g,' ');
-        highlightCue(i);
-      }
-    });
+        if (isFinite(audio.duration)) {
+          audio.currentTime = cue.start;
+          subText.textContent = cue.text.replace(/\n/g,' ');
+          lastCueText = cue.text.replace(/\n/g,' ');
+          highlightCue(i);
+          // Record the selected sentence for potential repeat
+          selectedCue = { start: cue.start, end: cue.end, text: cue.text };
+          // Show repeat button so user can choose repeat count
+          btnRepeat.classList.remove('hidden');
+          // Reset repeat when selecting a new sentence
+          repeatMode = 0;
+          repeatCue = null;
+          repeatRemaining = 0;
+          btnRepeat.textContent = '🔂 重复';
+          btnRepeat.classList.remove('on');
+          // Always start playing when a subtitle sentence is selected
+          audio.play().then(() => {
+            btnPlay.textContent = '⏸';
+          }).catch(() => {});
+        }
+      });
     subSelector.appendChild(div);
   });
 }
@@ -465,6 +500,23 @@ audio.addEventListener('timeupdate', () => {
   if (!dragging) progressSlider.value = (audio.currentTime/audio.duration)*1000;
   timeCurrent.textContent = fmt(audio.currentTime);
 
+  // ── Repeat mode: loop selected cue ──
+  if (repeatCue && repeatRemaining > 0) {
+    if (audio.currentTime >= repeatCue.end) {
+      repeatRemaining--;
+      if (repeatRemaining > 0) {
+        audio.currentTime = repeatCue.start;
+      } else {
+        // All repeats done, reset state but keep button visible for next selection
+        repeatCue = null;
+        repeatMode = 0;
+        repeatRemaining = 0;
+        btnRepeat.textContent = '🔂 重复';
+        btnRepeat.classList.remove('on');
+      }
+    }
+  }
+
   if (subTracks.length>0) {
     const t = subTracks.find(s=>s._active);
     if (t && t._cues) {
@@ -501,6 +553,14 @@ audio.addEventListener('loadedmetadata', () => {
 });
 
 audio.addEventListener('ended', () => {
+  // Reset repeat state
+  selectedCue = null;
+  repeatMode = 0;
+  repeatCue = null;
+  repeatRemaining = 0;
+  btnRepeat.classList.add('hidden');
+  btnRepeat.textContent = '🔂 重复';
+  btnRepeat.classList.remove('on');
   if (loopMode===1) { audio.currentTime=0; audio.play().catch(()=>{}); return; }
   if (loopMode===2 && playlist.length>1) {
     curIdx = (curIdx+1)%playlist.length; loadFile(curIdx);
@@ -535,6 +595,25 @@ btnLoop.addEventListener('click', () => {
   const labels = ['🔁 オフ','🔂 1曲','🔁 全曲'];
   btnLoop.textContent = labels[loopMode];
   btnLoop.classList.toggle('on', loopMode>0);
+});
+
+btnRepeat.addEventListener('click', () => {
+  if (!selectedCue) return;
+  // Cycle: off -> 1回 -> 2回 -> 3回 -> 4回 -> off
+  repeatMode = (repeatMode + 1) % 5;
+  const labels = ['🔂 オフ','🔂 1回','🔂 2回','🔂 3回','🔂 4回'];
+  btnRepeat.textContent = labels[repeatMode];
+  btnRepeat.classList.toggle('on', repeatMode > 0);
+  if (repeatMode > 0 && selectedCue) {
+    // Apply repeat to the selected sentence
+    repeatCue = { start: selectedCue.start, end: selectedCue.end };
+    repeatRemaining = repeatMode;
+    // Seek back to start of sentence to begin repeating
+    audio.currentTime = selectedCue.start;
+  } else {
+    repeatCue = null;
+    repeatRemaining = 0;
+  }
 });
 </script>
 </body>
