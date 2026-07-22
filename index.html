@@ -1575,12 +1575,12 @@
 
   btnForward.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
-    media.currentTime = Math.min(media.currentTime + 10, media.duration);
+    media.currentTime = Math.min(media.currentTime + 2, media.duration);
   });
 
   btnBackward.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
-    media.currentTime = Math.max(media.currentTime - 10, 0);
+    media.currentTime = Math.max(media.currentTime - 2, 0);
   });
 
   progressSlider.addEventListener('input', () => {
