@@ -1191,6 +1191,7 @@
     const cur = media.currentTime;
     setRange(cur, cur + 5);
     syncRepeatRange();
+    media.currentTime = Math.min(cur + 5, media.duration);
   });
 
   btnBackward.addEventListener('click', () => {
@@ -1198,6 +1199,7 @@
     const cur = media.currentTime;
     setRange(cur - 5, cur);
     syncRepeatRange();
+    media.currentTime = Math.max(cur - 5, 0);
   });
 
   btnForward10.addEventListener('click', () => {
@@ -1205,6 +1207,7 @@
     const cur = media.currentTime;
     setRange(cur, cur + 10);
     syncRepeatRange();
+    media.currentTime = Math.min(cur + 10, media.duration);
   });
 
   btnBackward10.addEventListener('click', () => {
@@ -1212,6 +1215,7 @@
     const cur = media.currentTime;
     setRange(cur - 10, cur);
     syncRepeatRange();
+    media.currentTime = Math.max(cur - 10, 0);
   });
 
   // While range-repeat is active, editing the boxes updates the loop immediately
