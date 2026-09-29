@@ -52,12 +52,13 @@
     padding: clamp(10px, 2vw, 20px) clamp(12px, 2.5vw, 24px);
     display: flex;
     flex-direction: column;
+    justify-content: center;
     min-height: 100vh;
     min-height: -webkit-fill-available;
   }
 
   .file-area {
-    margin-bottom: clamp(4px, 0.8vw, 8px);
+    margin-bottom: clamp(10px, 1.6vw, 16px);
     display: flex;
     gap: clamp(6px, 1.2vw, 10px);
     align-items: center;
@@ -136,8 +137,8 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-top: clamp(12px, 2vw, 20px);
-    margin-bottom: clamp(4px, 0.6vw, 6px);
+    margin-top: clamp(18px, 2.8vw, 28px);
+    margin-bottom: clamp(8px, 1.2vw, 12px);
     flex-shrink: 0;
   }
 
@@ -160,8 +161,8 @@
     background: rgba(255, 255, 255, 0.25);
     outline: none;
     cursor: pointer;
-    margin-top: 4px;
-    margin-bottom: clamp(10px, 1.5vw, 14px);
+    margin-top: 6px;
+    margin-bottom: clamp(16px, 2.2vw, 22px);
     flex-shrink: 0;
   }
   .slider::-webkit-slider-thumb {
@@ -180,8 +181,8 @@
     display: flex;
     align-items: center;
     gap: clamp(6px, 1vw, 10px);
-    margin-top: clamp(4px, 0.6vw, 8px);
-    margin-bottom: clamp(4px, 0.8vw, 8px);
+    margin-top: clamp(10px, 1.4vw, 14px);
+    margin-bottom: clamp(10px, 1.4vw, 14px);
     flex-shrink: 0;
   }
   .subtitle-bar.hidden { visibility: hidden; }
@@ -316,8 +317,8 @@
 
   /* Jump to time */
   .jump-input {
-    flex: 0 1 auto;
-    width: clamp(90px, 22vw, 140px);
+    flex: 1 1 auto;
+    min-width: 90px;
     background: rgba(18, 14, 42, 0.8);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 10px;
@@ -348,7 +349,7 @@
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
-    margin: 8px 0;
+    margin: clamp(12px, 1.8vw, 18px) 0;
   }
 
   .sub-selector {
@@ -471,7 +472,6 @@
   <input type="range" class="slider" id="progressSlider" min="0" max="1000" value="0" step="1">
 
   <div class="subtitle-bar" id="subtitleBar">
-    <select class="sub-select" id="subSelect"></select>
     <select class="sub-select" id="speedSelect" style="max-width:72px;flex:0 0 auto">
       <option value="0.5">0.5x</option>
       <option value="0.7">0.7x</option>
@@ -521,7 +521,6 @@
   const videoContainer = document.getElementById('videoContainer');
   const videoElem = document.getElementById('videoElem');
   const audioElem = document.getElementById('audioElem');
-  const subSelect = document.getElementById('subSelect');
   const speedSelect = document.getElementById('speedSelect');
   const subSelector = document.getElementById('subSelector');
   const jumpInput = document.getElementById('jumpInput');
@@ -752,47 +751,9 @@
       subSelector.innerHTML = ''; activeCueIdx = -1;
       return;
     }
-
-    if (subTracks.length === 0) {
-      subSelect.style.display = 'none';
-      subSelector.innerHTML = ''; activeCueIdx = -1;
-      return;
-    }
-    subSelect.style.display = '';
-
-    subSelect.innerHTML = '';
-
-    const offOpt = document.createElement('option');
-    offOpt.value = '-1';
-    offOpt.textContent = '字幕オフ';
-    subSelect.appendChild(offOpt);
-
-    subTracks.forEach((t, i) => {
-      const opt = document.createElement('option');
-      opt.value = String(i);
-      opt.textContent = t.label;
-      if (t._active) opt.selected = true;
-      subSelect.appendChild(opt);
-    });
-
     const active = subTracks.some(t => t._active);
-    const activeIdx = subTracks.findIndex(t => t._active);
-    if (activeIdx >= 0) subSelect.value = String(activeIdx);
-    else subSelect.value = '-1';
     if (active) renderSubSelector(); else { subSelector.innerHTML = ''; activeCueIdx = -1; }
   }
-
-  // ── Switch subtitle track ──
-  subSelect.addEventListener('change', () => {
-    const idx = parseInt(subSelect.value);
-    subTracks.forEach((t, i) => {
-      t._active = (i === idx);
-      if (t.trackEl) {
-        try { t.trackEl.mode = t._active ? 'showing' : 'hidden'; } catch {}
-      }
-    });
-    updateSubUI();
-  });
 
   // ── Clear all subtitle tracks ──
   function clearSubTracks() {
@@ -805,7 +766,6 @@
     subBlobUrls.forEach(u => URL.revokeObjectURL(u));
     subBlobUrls.length = 0;
     subTracks.length = 0;
-    subSelect.style.display = '';
     subSelector.innerHTML = ''; activeCueIdx = -1;
     repeatAll = false;
     btnRepeat.textContent = '重复';
