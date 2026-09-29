@@ -683,8 +683,11 @@
     }
     timeCurrent.textContent = fmtTime(media.currentTime);
 
-    // Range repeat: loop back to start when reaching the end
-    if (repeatRange && media.currentTime >= repeatRange.end) {
+    // Range repeat: loop back to start when reaching the end.
+    // When the loop end equals the audio duration, skip the seek here and let
+    // the natural 'ended' event handle the loop instead — seeking during
+    // 'timeupdate' races the 'ended' event and can leave playback paused.
+    if (repeatRange && media.currentTime >= repeatRange.end && media.currentTime < media.duration) {
       media.currentTime = repeatRange.start;
     }
 
@@ -1153,6 +1156,15 @@
       return;
     }
     if (media.paused) {
+      // If a repeat loop is active and playback reached the end, resume from
+      // the loop start instead of letting play() restart from 0.
+      if (media.ended) {
+        if (repeatRange) {
+          media.currentTime = repeatRange.start;
+        } else if (repeatAll) {
+          media.currentTime = 0;
+        }
+      }
       media.play().catch(() => {});
       btnPlay.innerHTML = PAUSE_ICON;
     } else {
