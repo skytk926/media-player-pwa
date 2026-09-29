@@ -567,6 +567,7 @@
       let repeatRange = null;
       let rangeEdited = false; // true once the user manually types a range
       let rangeFocused = false; // true while the user is editing a range box
+      let justSkipped = false; // true right after a ±5s/±10s skip, suppresses the loop snap-back once
 
   function showToast(msg, duration = 3000) {
     const overlay = document.createElement('div');
@@ -685,7 +686,9 @@
     timeCurrent.textContent = fmtTime(media.currentTime);
 
     // Keep the range box following playback until the user edits it.
-    if (!rangeEdited && !rangeFocused) {
+    // justSkipped: right after a manual skip the box was already set by
+    // skipBy(), so don't overwrite it with the pre-loop-snap position.
+    if (!rangeEdited && !rangeFocused && !justSkipped) {
       if (repeatRange) {
         // Range repeat: freeze the end time, but let the start time follow
         // the current playback position.
@@ -700,9 +703,12 @@
     // When the loop end equals the audio duration, skip the seek here and let
     // the natural 'ended' event handle the loop instead — seeking during
     // 'timeupdate' races the 'ended' event and can leave playback paused.
-    if (repeatRange && media.currentTime >= repeatRange.end && media.currentTime < media.duration) {
+    // A manual ±5s/±10s skip (justSkipped) is allowed to land at/past the end
+    // without being snapped straight back to the loop start.
+    if (repeatRange && !justSkipped && media.currentTime >= repeatRange.end && media.currentTime < media.duration) {
       media.currentTime = repeatRange.start;
     }
+    justSkipped = false;
 
     // Highlight current cue in the selector list
     if (!isVideo && subTracks.length > 0) {
@@ -1224,25 +1230,30 @@
     if (r) repeatRange = r;
   }
 
-  btnForward.addEventListener('click', () => {
+  function skipBy(delta) {
     if (!media || !isFinite(media.duration)) return;
-    media.currentTime = Math.min(media.currentTime + 5, media.duration);
-  });
+    const cur = media.currentTime;
+    const t = cur + delta;
+    justSkipped = true;
+    if (repeatRange) {
+      // Skipping redefines the loop to the span just jumped over:
+      // forward +5 from 27 -> 32 -> range becomes 27~32.
+      const nt = Math.max(0, Math.min(t, media.duration));
+      repeatRange = { start: Math.min(cur, nt), end: Math.max(cur, nt) };
+      repeatStartInput.value = fmtFull(repeatRange.start);
+      repeatEndInput.value = fmtFull(repeatRange.end);
+      media.currentTime = nt;
+    } else if (delta >= 0) {
+      media.currentTime = Math.min(t, media.duration);
+    } else {
+      media.currentTime = wrapTime(t);
+    }
+  }
 
-  btnBackward.addEventListener('click', () => {
-    if (!media || !isFinite(media.duration)) return;
-    media.currentTime = wrapTime(media.currentTime - 5);
-  });
-
-  btnForward10.addEventListener('click', () => {
-    if (!media || !isFinite(media.duration)) return;
-    media.currentTime = Math.min(media.currentTime + 10, media.duration);
-  });
-
-  btnBackward10.addEventListener('click', () => {
-    if (!media || !isFinite(media.duration)) return;
-    media.currentTime = wrapTime(media.currentTime - 10);
-  });
+  btnForward.addEventListener('click', () => skipBy(5));
+  btnBackward.addEventListener('click', () => skipBy(-5));
+  btnForward10.addEventListener('click', () => skipBy(10));
+  btnBackward10.addEventListener('click', () => skipBy(-10));
 
   // While range-repeat is active, editing the boxes updates the loop immediately.
   // A manual edit also stops the automatic "last 10s" default from overwriting.
