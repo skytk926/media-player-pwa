@@ -606,15 +606,17 @@
     if (sRaw !== '' || eRaw !== '') {
       const s = parseTimeInput(sRaw);
       const e = parseTimeInput(eRaw);
-      if (s === null || e === null || e <= s) {
+      if (s === null || e === null) {
         showToast('開始・終了を正しく入力してください。<br>例: 0:10 〜 0:20');
         return;
       }
-      if (e > media.duration) {
-        showToast('終了時間が音声の長さを超えています。');
+      const end = Math.min(e, media.duration);
+      if (end <= s) {
+        showToast('開始・終了を正しく入力してください。<br>例: 0:10 〜 0:20');
         return;
       }
-      range = { start: s, end: e };
+      if (end < e) repeatEndInput.value = fmtFull(end);
+      range = { start: s, end: end };
     }
 
     if (range) {
