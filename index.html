@@ -616,7 +616,7 @@
         return;
       }
       if (end < e) repeatEndInput.value = fmtFull(end);
-      range = { start: s, end: end };
+      range = { start: s, end };
     }
 
     if (range) {
@@ -1161,10 +1161,19 @@
     }
   });
 
+  function wrapTime(t) {
+    const d = media.duration;
+    if (!isFinite(d) || d <= 0) return t;
+    let v = t;
+    while (v < 0) v += d;
+    while (v > d) v -= d;
+    return v;
+  }
+
   function setRange(start, end) {
     const d = media.duration;
-    const s = Math.max(0, Math.min(start, d));
-    const e = Math.max(0, Math.min(end, d));
+    const s = wrapTime(start);
+    const e = Math.min(end, d);
     repeatStartInput.value = fmtFull(s);
     repeatEndInput.value = fmtFull(e);
   }
@@ -1191,15 +1200,16 @@
     const cur = media.currentTime;
     setRange(cur, cur + 5);
     syncRepeatRange();
-    media.currentTime = Math.min(cur + 5, media.duration);
+    media.currentTime = wrapTime(cur + 5);
   });
 
   btnBackward.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
     const cur = media.currentTime;
-    setRange(cur - 5, cur);
+    const start = wrapTime(cur - 5);
+    setRange(start, start + 5);
     syncRepeatRange();
-    media.currentTime = Math.max(cur - 5, 0);
+    media.currentTime = start;
   });
 
   btnForward10.addEventListener('click', () => {
@@ -1207,15 +1217,16 @@
     const cur = media.currentTime;
     setRange(cur, cur + 10);
     syncRepeatRange();
-    media.currentTime = Math.min(cur + 10, media.duration);
+    media.currentTime = wrapTime(cur + 10);
   });
 
   btnBackward10.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
     const cur = media.currentTime;
-    setRange(cur - 10, cur);
+    const start = wrapTime(cur - 10);
+    setRange(start, start + 10);
     syncRepeatRange();
-    media.currentTime = Math.max(cur - 10, 0);
+    media.currentTime = start;
   });
 
   // While range-repeat is active, editing the boxes updates the loop immediately
