@@ -583,7 +583,23 @@
       return;
     }
 
-    // Resolve the boxes into a valid range (null = no valid range)
+    // Whole-audio repeat active -> cancel repeat
+    if (repeatAll) {
+      repeatAll = false;
+      btnRepeat.textContent = 'リピート';
+      btnRepeat.classList.remove('loop-one');
+      return;
+    }
+
+    // Range repeat active -> switch to whole-audio repeat
+    if (repeatRange) {
+      repeatRange = null;
+      repeatAll = true;
+      btnRepeat.textContent = 'リピート中';
+      return;
+    }
+
+    // Idle -> start repeat: resolve the boxes into a valid range (null = no range)
     const sRaw = repeatStartInput.value.trim();
     const eRaw = repeatEndInput.value.trim();
     let range = null;
@@ -601,31 +617,6 @@
       range = { start: s, end: e };
     }
 
-    // Whole-audio repeat active -> range present? switch to range, else turn off
-    if (repeatAll) {
-      if (range) {
-        repeatAll = false;
-        repeatRange = range;
-        media.currentTime = range.start;
-        media.play().then(() => { btnPlay.innerHTML = PAUSE_ICON; }).catch(() => {});
-        btnRepeat.textContent = '区間リピート中';
-      } else {
-        repeatAll = false;
-        btnRepeat.textContent = 'リピート';
-        btnRepeat.classList.remove('loop-one');
-      }
-      return;
-    }
-
-    // Range repeat active -> switch to whole-audio repeat
-    if (repeatRange) {
-      repeatRange = null;
-      repeatAll = true;
-      btnRepeat.textContent = 'リピート中';
-      return;
-    }
-
-    // Idle -> start repeat
     if (range) {
       repeatRange = range;
       media.currentTime = range.start;
