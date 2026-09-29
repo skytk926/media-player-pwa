@@ -357,25 +357,6 @@
     flex-shrink: 0;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
   }
-  .btn-reset {
-    height: clamp(34px, 5vw, 40px);
-    padding: 0 clamp(12px, 1.8vw, 16px);
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(30, 22, 60, 0.6);
-    color: #c7d4e8;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    white-space: nowrap;
-    flex-shrink: 0;
-    transition: background 0.15s, color 0.15s, transform 0.15s;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-  }
-  .btn-reset:hover { color: #fff; }
-  .btn-reset:active { transform: scale(0.96); }
-
   /* Subtitle cue list */
   .sub-panel {
     flex: 0 0 auto;
@@ -507,7 +488,6 @@
     <input type="text" class="jump-input" id="repeatStartInput" placeholder="開始 0:10" inputmode="text">
     <span class="range-sep">〜</span>
     <input type="text" class="jump-input" id="repeatEndInput" placeholder="終了 0:20" inputmode="text">
-    <button class="btn-reset" id="btnRangeReset">リセット</button>
   </div>
 
   <div class="subtitle-bar" id="subtitleBar">
@@ -566,7 +546,6 @@
   const btnJump = document.getElementById('btnJump');
   const repeatStartInput = document.getElementById('repeatStartInput');
   const repeatEndInput = document.getElementById('repeatEndInput');
-  const btnRangeReset = document.getElementById('btnRangeReset');
 
   const playlist = [];
   let currentIndex = -1;
@@ -600,18 +579,14 @@
       showToast('音声/動画を先に読み込んでください');
       return;
     }
-    // Cancel any active repeat (whole or range)
-    if (repeatAll || repeatRange) {
-      repeatAll = false;
-      repeatRange = null;
-      btnRepeat.textContent = 'リピート';
-      btnRepeat.classList.remove('loop-one');
-      return;
-    }
-    // Determine mode: range repeat if start/end are provided, else whole audio
-    const s = parseTimeInput(repeatStartInput.value);
-    const e = parseTimeInput(repeatEndInput.value);
-    if (s !== null || e !== null) {
+
+    // Resolve the boxes into a valid range (null = no valid range)
+    const sRaw = repeatStartInput.value.trim();
+    const eRaw = repeatEndInput.value.trim();
+    let range = null;
+    if (sRaw !== '' || eRaw !== '') {
+      const s = parseTimeInput(sRaw);
+      const e = parseTimeInput(eRaw);
       if (s === null || e === null || e <= s) {
         showToast('開始・終了を正しく入力してください。<br>例: 0:10 〜 0:20');
         return;
@@ -620,8 +595,37 @@
         showToast('終了時間が音声の長さを超えています。');
         return;
       }
-      repeatRange = { start: s, end: e };
-      media.currentTime = s;
+      range = { start: s, end: e };
+    }
+
+    // Whole-audio repeat active -> range present? switch to range, else turn off
+    if (repeatAll) {
+      if (range) {
+        repeatAll = false;
+        repeatRange = range;
+        media.currentTime = range.start;
+        media.play().then(() => { btnPlay.innerHTML = PAUSE_ICON; }).catch(() => {});
+        btnRepeat.textContent = '区間リピート中';
+      } else {
+        repeatAll = false;
+        btnRepeat.textContent = 'リピート';
+        btnRepeat.classList.remove('loop-one');
+      }
+      return;
+    }
+
+    // Range repeat active -> switch to whole-audio repeat
+    if (repeatRange) {
+      repeatRange = null;
+      repeatAll = true;
+      btnRepeat.textContent = 'リピート中';
+      return;
+    }
+
+    // Idle -> start repeat
+    if (range) {
+      repeatRange = range;
+      media.currentTime = range.start;
       media.play().then(() => { btnPlay.innerHTML = PAUSE_ICON; }).catch(() => {});
       btnRepeat.textContent = '区間リピート中';
     } else {
@@ -629,16 +633,6 @@
       btnRepeat.textContent = 'リピート中';
     }
     btnRepeat.classList.add('loop-one');
-  });
-
-  btnRangeReset.addEventListener('click', () => {
-    repeatStartInput.value = '';
-    repeatEndInput.value = '';
-    if (repeatRange) {
-      repeatRange = null;
-      btnRepeat.textContent = 'リピート';
-      btnRepeat.classList.remove('loop-one');
-    }
   });
 
   function fmtFull(seconds) {
@@ -1179,32 +1173,54 @@
     repeatEndInput.value = fmtFull(e);
   }
 
+  function readRangeFromInputs() {
+    const s = parseTimeInput(repeatStartInput.value);
+    const e = parseTimeInput(repeatEndInput.value);
+    if (s === null || e === null) return null;
+    const d = media.duration;
+    const start = Math.max(0, Math.min(s, d));
+    const end = Math.max(0, Math.min(e, d));
+    if (end <= start) return null;
+    return { start, end };
+  }
+
+  function syncRepeatRange() {
+    if (!repeatRange) return;
+    const r = readRangeFromInputs();
+    if (r) repeatRange = r;
+  }
+
   btnForward.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
     const cur = media.currentTime;
     setRange(cur, cur + 5);
-    media.currentTime = Math.min(cur + 5, media.duration);
+    syncRepeatRange();
   });
 
   btnBackward.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
     const cur = media.currentTime;
     setRange(cur - 5, cur);
-    media.currentTime = Math.max(cur - 5, 0);
+    syncRepeatRange();
   });
 
   btnForward10.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
     const cur = media.currentTime;
     setRange(cur, cur + 10);
-    media.currentTime = Math.min(cur + 10, media.duration);
+    syncRepeatRange();
   });
 
   btnBackward10.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
     const cur = media.currentTime;
     setRange(cur - 10, cur);
-    media.currentTime = Math.max(cur - 10, 0);
+    syncRepeatRange();
+  });
+
+  // While range-repeat is active, editing the boxes updates the loop immediately
+  [repeatStartInput, repeatEndInput].forEach((el) => {
+    el.addEventListener('input', syncRepeatRange);
   });
 
   // Press feedback: show red while pressing (touch + mouse), disappears on release
