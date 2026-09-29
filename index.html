@@ -28,9 +28,9 @@
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background:
-      radial-gradient(1200px 800px at 15% -10%, rgba(233, 69, 96, 0.20), transparent 60%),
-      radial-gradient(1000px 720px at 110% 15%, rgba(64, 130, 255, 0.20), transparent 60%),
-      linear-gradient(160deg, #14122b 0%, #1a1a3e 45%, #14122b 100%);
+      radial-gradient(1200px 800px at 15% -10%, rgba(255, 90, 150, 0.35), transparent 60%),
+      radial-gradient(1000px 720px at 110% 20%, rgba(80, 140, 255, 0.35), transparent 60%),
+      linear-gradient(160deg, #8b5cf6 0%, #5b2a86 40%, #4c1d95 100%);
     color: #e0e0e0;
     display: flex;
     justify-content: center;
@@ -45,7 +45,7 @@
   .player {
     width: min(96%, 720px);
     margin: 0 auto;
-    background: rgba(22, 33, 62, 0.72);
+    background: rgba(58, 40, 110, 0.66);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -56,16 +56,6 @@
     flex-direction: column;
     min-height: 100vh;
     min-height: -webkit-fill-available;
-  }
-
-  .player-title {
-    text-align: center;
-    font-size: clamp(10px, 1.5vw, 12px);
-    color: #888;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    margin-bottom: clamp(4px, 1vw, 10px);
-    flex-shrink: 0;
   }
 
   .file-area {
@@ -122,7 +112,7 @@
     max-height: clamp(40px, 9vh, 100px);
     overflow-y: auto;
     border-radius: 8px;
-    background: #0a1628;
+    background: rgba(30, 22, 60, 0.5);
     flex-shrink: 0;
   }
   .playlist:empty { display: none; }
@@ -303,7 +293,7 @@
     padding-right: 28px;
   }
   .sub-select option {
-    background: #16213e;
+    background: #3b2a6b;
     color: #e0e0e0;
   }
 
@@ -345,9 +335,13 @@
 
   .controls {
     display: flex;
-    justify-content: center;
+    flex-direction: column;
     align-items: center;
-    gap: clamp(10px, 2vw, 18px);
+    gap: clamp(6px, 1vw, 10px);
+  }
+  .controls-row {
+    display: flex;
+    gap: clamp(8px, 1.5vw, 12px);
   }
 
   .btn-ctrl {
@@ -392,13 +386,14 @@
     flex-shrink: 0;
   }
   .jump-input {
-    flex: 1;
+    flex: 0 1 auto;
+    width: clamp(110px, 26vw, 160px);
     background: rgba(255, 255, 255, 0.07);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
+    border-radius: 10px;
     color: #e0e0e0;
-    font-size: clamp(13px, 1.8vw, 15px);
-    padding: clamp(8px, 1.2vw, 12px) clamp(10px, 1.5vw, 14px);
+    font-size: 16px;
+    padding: 6px 10px;
     outline: none;
     font-variant-numeric: tabular-nums;
     -webkit-tap-highlight-color: transparent;
@@ -408,9 +403,9 @@
   .btn-jump {
     background: linear-gradient(135deg, #4a90ff 0%, #3a6ee8 100%);
     box-shadow: 0 8px 20px rgba(58, 110, 232, 0.35);
-    border-radius: 12px;
-    padding: clamp(8px, 1.2vw, 12px) clamp(14px, 2vw, 18px);
-    font-size: clamp(13px, 1.8vw, 15px);
+    border-radius: 10px;
+    padding: 6px 14px;
+    font-size: 14px;
     font-weight: 600;
     white-space: nowrap;
     flex-shrink: 0;
@@ -429,7 +424,7 @@
     min-height: 0;
     max-height: clamp(120px, 30vh, 240px);
     overflow-y: auto;
-    background: rgba(0, 0, 0, 0.75);
+    background: rgba(30, 22, 60, 0.6);
     border-radius: 24px;
     padding: 4px 10px 10px;
     -webkit-overflow-scrolling: touch;
@@ -487,7 +482,7 @@
     to   { opacity: 1; }
   }
   .toast-box {
-    background: #1a1a2e;
+    background: #3b2a6b;
     border: 1px solid #e94560;
     border-radius: 14px;
     padding: 32px 28px;
@@ -523,8 +518,6 @@
 <body>
 
 <div class="player">
-  <div class="player-title">プレーヤー v10</div>
-
   <div class="file-area">
     <div class="file-name" id="fileName">ファイル未選択</div>
     <button class="btn btn-open" id="btnOpen">開く</button>
@@ -549,8 +542,6 @@
   <input type="range" class="slider" id="progressSlider" min="0" max="1000" value="0" step="1">
 
   <div class="subtitle-bar" id="subtitleBar">
-    <button class="btn-sub" id="btnSub" title="字幕ファイルを読込">字幕</button>
-    <input type="file" id="subFileInput" style="position:absolute;width:0.1px;height:0.1px;opacity:0;overflow:hidden;z-index:-1">
     <select class="sub-select" id="subSelect"></select>
     <select class="sub-select" id="speedSelect" style="max-width:72px;flex:0 0 auto">
       <option value="0.5">0.5x</option>
@@ -562,6 +553,7 @@
       <option value="1.5">1.5x</option>
       <option value="2">2x</option>
     </select>
+    <button class="btn-loop hidden" id="btnRepeat" title="選択字幕をリピート">🔂 重复</button>
   </div>
 
   <div class="jump-row">
@@ -571,13 +563,16 @@
 
   <div class="bottom-row">
     <button class="btn-loop" id="btnLoop" title="リピートモード">🔁</button>
-    <button class="btn-loop hidden" id="btnRepeat" title="選択字幕をリピート">🔂 重复</button>
     <div class="controls">
-      <button class="btn btn-ctrl btn-skip" id="btnBackward10" title="10秒戻る">−10s</button>
-      <button class="btn btn-ctrl btn-skip" id="btnBackward" title="5秒戻る">−5s</button>
+      <div class="controls-row">
+        <button class="btn btn-ctrl btn-skip" id="btnBackward10" title="10秒戻る">−10s</button>
+        <button class="btn btn-ctrl btn-skip" id="btnBackward" title="5秒戻る">−5s</button>
+      </div>
       <button class="btn btn-ctrl btn-play" id="btnPlay" title="再生/停止">▶</button>
-      <button class="btn btn-ctrl btn-skip" id="btnForward" title="5秒進む">+5s</button>
-      <button class="btn btn-ctrl btn-skip" id="btnForward10" title="10秒進む">+10s</button>
+      <div class="controls-row">
+        <button class="btn btn-ctrl btn-skip" id="btnForward" title="5秒進む">+5s</button>
+        <button class="btn btn-ctrl btn-skip" id="btnForward10" title="10秒進む">+10s</button>
+      </div>
     </div>
   </div>
 </div>
@@ -603,9 +598,6 @@
   const audioElem = document.getElementById('audioElem');
   const playlistEl = document.getElementById('playlist');
   const btnLoop = document.getElementById('btnLoop');
-  const subtitleBar = document.getElementById('subtitleBar');
-  const btnSub = document.getElementById('btnSub');
-  const subFileInput = document.getElementById('subFileInput');
   const subSelect = document.getElementById('subSelect');
   const speedSelect = document.getElementById('speedSelect');
   const subSelector = document.getElementById('subSelector');
@@ -789,49 +781,6 @@
     btnPlay.textContent = '▶';
   }
 
-  // ── Subtitle: SRT → WebVTT ──
-  function srtToVtt(text) {
-    let vtt = 'WEBVTT\n\n';
-    const blocks = text.replace(/\r\n/g, '\n').split(/\n\n+/);
-    blocks.forEach((block, i) => {
-      const lines = block.trim().split('\n');
-      if (lines.length < 3) return;
-      // Skip index line
-      const timeMatch = lines[1] && lines[1].match(/([\d:,]+)\s*-->\s*([\d:,]+)/);
-      if (!timeMatch) return;
-      const body = lines.slice(2).join('\n');
-      vtt += (i + 1) + '\n';
-      vtt += timeMatch[1].replace(/,/g, '.') + ' --> ' + timeMatch[2].replace(/,/g, '.') + '\n';
-      vtt += body + '\n\n';
-    });
-    return vtt;
-  }
-
-  // ── Subtitle: ASS/SSA → WebVTT (simplified) ──
-  function assToVtt(text) {
-    let vtt = 'WEBVTT\n\n';
-    const lines = text.replace(/\r\n/g, '\n').split('\n');
-    let inEvents = false;
-    let i = 0;
-    lines.forEach((line) => {
-      if (/^\[Events\]/i.test(line)) { inEvents = true; return; }
-      if (!inEvents || !/^Dialogue:/i.test(line)) return;
-      const parts = line.slice(line.indexOf(':') + 1).split(',');
-      if (parts.length < 9) return;
-      // Remove {…} override tags
-      const raw = parts.slice(9).join(',');
-      const body = raw.replace(/\{[^}]*\}/g, '').replace(/\\N/g, '\n').replace(/\\n/g, '\n').trim();
-      if (!body) return;
-      const start = parts[1].trim().replace(/\.(\d)$/, '.$10').replace(/\.(\d\d)$/, '.$10');
-      const end = parts[2].trim().replace(/\.(\d)$/, '.$10').replace(/\.(\d\d)$/, '.$10');
-      i++;
-      vtt += i + '\n';
-      vtt += start + ' --> ' + end + '\n';
-      vtt += body + '\n\n';
-    });
-    return i > 0 ? vtt : '';
-  }
-
   // ── Parse WebVTT cues for manual overlay (audio files) ──
   function parseVttCues(vttText) {
     const cues = [];
@@ -936,7 +885,6 @@
       return;
     }
 
-    btnSub.style.display = '';
     if (subTracks.length === 0) {
       subSelect.style.display = 'none';
       subSelector.innerHTML = ''; activeCueIdx = -1;
@@ -960,13 +908,6 @@
     });
 
     const active = subTracks.some(t => t._active);
-    if (active) {
-      btnSub.classList.add('active');
-      btnSub.textContent = '字幕 ON';
-    } else {
-      btnSub.classList.remove('active');
-      btnSub.textContent = '字幕';
-    }
     const activeIdx = subTracks.findIndex(t => t._active);
     if (activeIdx >= 0) subSelect.value = String(activeIdx);
     else subSelect.value = '-1';
@@ -996,10 +937,7 @@
     subBlobUrls.forEach(u => URL.revokeObjectURL(u));
     subBlobUrls.length = 0;
     subTracks.length = 0;
-    btnSub.style.display = '';
     subSelect.style.display = '';
-    btnSub.classList.remove('active');
-    btnSub.textContent = '字幕';
     subSelector.innerHTML = ''; activeCueIdx = -1;
     selectedCue = null;
     repeatMode = 0;
@@ -1106,168 +1044,6 @@
     });
   }
 
-  // ── Parse external subtitle file ──
-  function parseSubFile(file) {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = e.target.result;
-        const ext = file.name.split('.').pop().toLowerCase();
-        let vtt;
-        if (ext === 'vtt') {
-          vtt = text.startsWith('WEBVTT') ? text : 'WEBVTT\n\n' + text;
-        } else if (ext === 'srt') {
-          vtt = srtToVtt(text);
-        } else if (ext === 'ass' || ext === 'ssa') {
-          vtt = assToVtt(text);
-        }
-        if (vtt && vtt !== 'WEBVTT\n\n') {
-          resolve({ label: file.name, language: '', vtt });
-        } else {
-          resolve(null);
-        }
-      };
-      reader.onerror = () => resolve(null);
-      reader.readAsText(file);
-    });
-  }
-
-  // ── Fetch VTT from server URL ──
-  async function loadSubFromUrl(url, label) {
-    try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const text = await res.text();
-      const ext = url.split('.').pop().toLowerCase().split('?')[0];
-      let vtt;
-      if (ext === 'vtt') {
-        vtt = text.startsWith('WEBVTT') ? text : 'WEBVTT\n\n' + text;
-      } else if (ext === 'srt') {
-        vtt = srtToVtt(text);
-      } else if (ext === 'ass' || ext === 'ssa') {
-        vtt = assToVtt(text);
-      }
-      if (vtt && vtt !== 'WEBVTT\n\n') {
-        addSubTrack(label, '', vtt);
-        return true;
-      }
-      showToast('字幕データが空です。');
-      return false;
-    } catch (e) {
-      showToast('字幕の読込に失敗しました。<br>' + e.message);
-      return false;
-    }
-  }
-
-  // ── Show subtitle source selection popup ──
-  async function showSubSourceMenu() {
-    const overlay = document.createElement('div');
-    overlay.className = 'toast-overlay';
-    overlay.id = 'subSourceOverlay';
-
-    let serverFilesHtml = '<div style="text-align:left;margin:8px 0;color:#888;font-size:14px">サーバー確認中...</div>';
-
-    overlay.innerHTML = `
-      <div class="toast-box" style="padding:24px 20px;max-width:min(90%,400px)">
-        <div style="font-size:18px;font-weight:600;margin-bottom:16px">字幕を読み込む</div>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          <button class="toast-btn" id="subSourceDevice" style="margin:0;background:#0f3460;font-size:15px">
-            📱 端末から選択
-          </button>
-          <div style="border-top:1px solid #333;margin:8px 0"></div>
-          <div id="serverFilesSection" style="max-height:180px;overflow-y:auto">
-            ${serverFilesHtml}
-          </div>
-          <div style="display:flex;gap:8px;margin-top:4px">
-            <input type="text" id="subUrlInput" placeholder="URLを入力..."
-              style="flex:1;background:#0f3460;border:none;border-radius:8px;color:#e0e0e0;font-size:13px;padding:8px 10px">
-            <button class="toast-btn" id="subSourceUrl" style="margin:0;font-size:13px;padding:8px 16px;white-space:nowrap">
-              読込
-            </button>
-          </div>
-        </div>
-        <button class="toast-btn" id="subSourceCancel" style="margin:16px auto 0;background:#444;font-size:14px">
-          キャンセル
-        </button>
-      </div>`;
-
-    document.body.appendChild(overlay);
-
-    const close = () => overlay.remove();
-
-    // Cancel
-    overlay.querySelector('#subSourceCancel').addEventListener('click', close);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-
-    // Device file picker
-    overlay.querySelector('#subSourceDevice').addEventListener('click', () => {
-      close();
-      subFileInput.click();
-    });
-
-    // URL input
-    overlay.querySelector('#subSourceUrl').addEventListener('click', async () => {
-      const url = overlay.querySelector('#subUrlInput').value.trim();
-      if (!url) { showToast('URLを入力してください。'); return; }
-      close();
-      const label = url.split('/').pop() || '字幕';
-      await loadSubFromUrl(url, label);
-    });
-
-    // Fetch server VTT list
-    try {
-      const res = await fetch('/vtt-list');
-      const data = await res.json();
-      const section = overlay.querySelector('#serverFilesSection');
-      if (data.files && data.files.length > 0) {
-        section.innerHTML = '<div style="color:#888;font-size:12px;margin-bottom:4px">📂 サーバー上の字幕ファイル</div>';
-        data.files.forEach(f => {
-          const btn = document.createElement('button');
-          btn.className = 'toast-btn';
-          btn.style.cssText = 'margin:2px 0;background:#1a4a80;font-size:13px;display:block;width:100%;text-align:left;padding:8px 12px';
-          btn.textContent = '📄 ' + f.name;
-          btn.addEventListener('click', async () => {
-            close();
-            await loadSubFromUrl(f.url, f.name);
-          });
-          section.appendChild(btn);
-        });
-      } else {
-        section.innerHTML = '<div style="color:#666;font-size:13px;text-align:center;padding:8px">サーバーに字幕ファイルがありません</div>';
-      }
-    } catch {
-      const section = overlay.querySelector('#serverFilesSection');
-      section.innerHTML = '<div style="color:#666;font-size:13px;text-align:center;padding:8px">サーバー未接続</div>';
-    }
-  }
-
-  // ── External subtitle file selection ──
-  btnSub.addEventListener('click', () => {
-    if (subTracks.length === 0) {
-      subFileInput.click();
-    } else {
-      const anyActive = subTracks.some(t => t._active);
-      if (anyActive) {
-        subTracks.forEach(t => { t._active = false; try { t.trackEl.mode = 'hidden'; } catch {} });
-      } else {
-        if (subTracks[0]) subTracks[0]._active = true;
-        try { if (subTracks[0]) subTracks[0].trackEl.mode = 'showing'; } catch {}
-      }
-      updateSubUI();
-    }
-  });
-
-  subFileInput.addEventListener('change', async () => {
-    const file = subFileInput.files[0];
-    if (!file) return;
-    const result = await parseSubFile(file);
-    if (result) {
-      addSubTrack(result.label, result.language, result.vtt);
-    } else {
-      showToast('未対応の字幕形式です。<br>SRT / VTT / ASS / SSA ファイルを選択してください。');
-    }
-    subFileInput.value = '';
-  });
 
   // ── Render playlist ──
   function renderPlaylist() {
