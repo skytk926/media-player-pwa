@@ -47,13 +47,9 @@
   .player {
     width: min(96%, 720px);
     margin: 0 auto;
-    background: rgba(30, 22, 60, 0.45);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.10);
     border-radius: clamp(12px, 2vw, 16px);
     padding: clamp(10px, 2vw, 20px) clamp(12px, 2.5vw, 24px);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     display: flex;
     flex-direction: column;
     min-height: 100vh;
@@ -301,12 +297,23 @@
 
   /* Bottom row: loop + controls */
   .bottom-row {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: clamp(8px, 1.5vw, 14px);
     margin-top: clamp(4px, 0.6vw, 8px);
     flex-shrink: 0;
+  }
+  #btnLoop {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: clamp(54px, 9vw, 68px);
+    padding: 0;
+    border-radius: 50%;
+    font-size: clamp(24px, 4vw, 30px);
   }
 
   .btn-loop {
@@ -555,7 +562,7 @@
       <option value="1.5">1.5x</option>
       <option value="2">2x</option>
     </select>
-    <button class="btn-loop hidden" id="btnRepeat" title="選択字幕をリピート">🔂 重复</button>
+    <button class="btn-loop" id="btnRepeat" title="選択字幕をリピート">重复</button>
   </div>
 
   <div class="jump-row">
@@ -568,11 +575,11 @@
     <div class="controls">
       <div class="controls-row">
         <button class="btn btn-ctrl btn-skip" id="btnBackward" title="5秒戻る">−5s</button>
-        <button class="btn btn-ctrl btn-skip" id="btnBackward10" title="10秒戻る">−10s</button>
-      </div>
-      <button class="btn btn-ctrl btn-play" id="btnPlay" title="再生/停止">▶</button>
-      <div class="controls-row">
         <button class="btn btn-ctrl btn-skip" id="btnForward" title="5秒進む">+5s</button>
+      </div>
+      <button class="btn btn-ctrl btn-play" id="btnPlay" title="再生/停止"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" style="display:block"><path d="M8 5v14l11-7z"/></svg></button>
+      <div class="controls-row">
+        <button class="btn btn-ctrl btn-skip" id="btnBackward10" title="10秒戻る">−10s</button>
         <button class="btn btn-ctrl btn-skip" id="btnForward10" title="10秒進む">+10s</button>
       </div>
     </div>
@@ -616,6 +623,8 @@
   let loopMode = 0;
   const loopLabels = ['繰り返しオフ', '1曲リピート', '全曲リピート'];
   const loopIcons = ['🔁', '🔂', '🔁'];
+  const PLAY_ICON = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" style="display:block"><path d="M8 5v14l11-7z"/></svg>';
+  const PAUSE_ICON = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" style="display:block"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
 
   // Subtitle state
   const subTracks = []; // { label, language, blobUrl, embedded }
@@ -638,7 +647,7 @@
   }
 
   function updateLoopBtn() {
-    btnLoop.textContent = loopIcons[loopMode] + ' ' + loopLabels[loopMode];
+    btnLoop.textContent = loopIcons[loopMode];
     btnLoop.title = loopLabels[loopMode];
     btnLoop.className = 'btn-loop';
     if (loopMode === 1) btnLoop.classList.add('loop-one');
@@ -653,7 +662,7 @@
   btnRepeat.addEventListener('click', () => {
     if (!selectedCue) return;
     repeatMode = (repeatMode + 1) % 5;
-    const labels = ['🔂 オフ','🔂 1回','🔂 2回','🔂 3回','🔂 4回'];
+    const labels = ['オフ','1回','2回','3回','4回'];
     btnRepeat.textContent = labels[repeatMode];
     if (repeatMode > 0) btnRepeat.classList.add('loop-one');
     else btnRepeat.classList.remove('loop-one');
@@ -728,7 +737,7 @@
           repeatCue = null;
           repeatMode = 0;
           repeatRemaining = 0;
-          btnRepeat.textContent = '🔂 重复';
+          btnRepeat.textContent = '重复';
           btnRepeat.classList.remove('loop-one');
         }
       }
@@ -759,8 +768,7 @@
     repeatMode = 0;
     repeatCue = null;
     repeatRemaining = 0;
-    btnRepeat.classList.add('hidden');
-    btnRepeat.textContent = '🔂 重复';
+    btnRepeat.textContent = '重复';
     btnRepeat.classList.remove('loop-one');
     if (loopMode === 1) {
       media.currentTime = 0;
@@ -780,7 +788,7 @@
       media.play().catch(() => {});
       return;
     }
-    btnPlay.textContent = '▶';
+    btnPlay.innerHTML = PLAY_ICON;
   }
 
   // ── Parse WebVTT cues for manual overlay (audio files) ──
@@ -833,9 +841,9 @@
           repeatMode = 0;
           repeatCue = null;
           repeatRemaining = 0;
-          btnRepeat.textContent = '🔂 重复';
+          btnRepeat.textContent = '重复';
           btnRepeat.classList.remove('loop-one');
-          media.play().then(() => { btnPlay.textContent = '⏸'; }).catch(() => {});
+          media.play().then(() => { btnPlay.innerHTML = PAUSE_ICON; }).catch(() => {});
         }
       });
       subSelector.appendChild(div);
@@ -945,8 +953,7 @@
     repeatMode = 0;
     repeatCue = null;
     repeatRemaining = 0;
-    btnRepeat.classList.add('hidden');
-    btnRepeat.textContent = '🔂 重复';
+    btnRepeat.textContent = '重复';
     btnRepeat.classList.remove('loop-one');
   }
 
@@ -1080,7 +1087,7 @@
         loadFile(i);
         renderPlaylist();
         media.play().catch(() => {});
-        btnPlay.textContent = '⏸';
+        btnPlay.innerHTML = PAUSE_ICON;
       });
 
       playlistEl.appendChild(li);
@@ -1120,8 +1127,7 @@
     repeatMode = 0;
     repeatCue = null;
     repeatRemaining = 0;
-    btnRepeat.classList.add('hidden');
-    btnRepeat.textContent = '🔂 重复';
+    btnRepeat.textContent = '重复';
     btnRepeat.classList.remove('loop-one');
 
     // Try to extract embedded subtitles from MP4 files
@@ -1167,7 +1173,7 @@
       progressSlider.value = 0;
       timeCurrent.textContent = '00:00';
       timeDuration.textContent = '00:00';
-      btnPlay.textContent = '▶';
+      btnPlay.innerHTML = PLAY_ICON;
       clearSubTracks();
       updateFileCount();
       renderPlaylist();
@@ -1339,16 +1345,16 @@
         loadFile(0);
         renderPlaylist();
         media.play().catch(() => {});
-        btnPlay.textContent = '⏸';
+        btnPlay.innerHTML = PAUSE_ICON;
       }
       return;
     }
     if (media.paused) {
       media.play().catch(() => {});
-      btnPlay.textContent = '⏸';
+      btnPlay.innerHTML = PAUSE_ICON;
     } else {
       media.pause();
-      btnPlay.textContent = '▶';
+      btnPlay.innerHTML = PLAY_ICON;
     }
   });
 
