@@ -366,6 +366,39 @@
   }
   .btn-skip:hover { background: #1a4a80; }
 
+  /* Jump to time */
+  .jump-row {
+    display: flex;
+    align-items: center;
+    gap: clamp(6px, 1vw, 10px);
+    margin-top: clamp(4px, 0.6vw, 8px);
+    margin-bottom: clamp(4px, 0.8vw, 8px);
+    flex-shrink: 0;
+  }
+  .jump-input {
+    flex: 1;
+    background: #0f3460;
+    border: none;
+    border-radius: 8px;
+    color: #e0e0e0;
+    font-size: clamp(13px, 1.8vw, 15px);
+    padding: clamp(8px, 1.2vw, 12px) clamp(10px, 1.5vw, 14px);
+    outline: none;
+    font-variant-numeric: tabular-nums;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .jump-input::placeholder { color: #5a6a85; }
+  .btn-jump {
+    background: #1a4a80;
+    border-radius: 10px;
+    padding: clamp(8px, 1.2vw, 12px) clamp(14px, 2vw, 18px);
+    font-size: clamp(13px, 1.8vw, 15px);
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .btn-jump:hover { background: #0f3460; }
+
   /* Wrapper: shares space between overlay + selector */
   .sub-panel {
     flex: 1 1 auto;
@@ -376,39 +409,13 @@
     margin: 8px 0;
   }
 
-  .sub-overlay {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    text-align-last: left;
-    padding: clamp(20px, 4vw, 36px) clamp(20px, 4vw, 36px) clamp(12px, 2vw, 20px);
-    flex: 16 1 0px;
-    min-height: 260px;
-    max-height: none;
-    overflow: auto;
-    line-height: 1.5;
-    font-size: clamp(36px, 6vw, 64px);
-    color: #fff;
-    background: rgba(0, 0, 0, 0.7);
-    border-radius: 24px 24px 0 0;
-    white-space: normal;
-    word-break: break-word;
-    user-select: text;
-    -webkit-user-select: text;
-    -webkit-touch-callout: default;
-    cursor: pointer;
-  }
-
-
   .sub-selector {
-    flex: 7 0 0px;
+    flex: 1 1 auto;
     min-height: 120px;
-    max-height: 40vh;
+    max-height: 60vh;
     overflow-y: auto;
     background: rgba(0, 0, 0, 0.75);
-    border-top: 2px solid rgba(255,255,255,0.12);
-    border-radius: 0 0 24px 24px;
+    border-radius: 24px;
     padding: 4px 10px 10px;
     -webkit-overflow-scrolling: touch;
   }
@@ -515,7 +522,6 @@
   </div>
 
   <div class="sub-panel">
-    <div class="sub-overlay" id="subOverlay"></div>
     <div class="sub-selector" id="subSelector"></div>
   </div>
 
@@ -542,13 +548,20 @@
     </select>
   </div>
 
+  <div class="jump-row">
+    <input type="text" class="jump-input" id="jumpInput" placeholder="分:秒 例 1:30" inputmode="numeric">
+    <button class="btn btn-jump" id="btnJump">跳转</button>
+  </div>
+
   <div class="bottom-row">
     <button class="btn-loop" id="btnLoop" title="リピートモード">🔁</button>
     <button class="btn-loop hidden" id="btnRepeat" title="選択字幕をリピート">🔂 重复</button>
     <div class="controls">
-      <button class="btn btn-ctrl btn-skip" id="btnBackward" title="2秒戻る">−2s</button>
+      <button class="btn btn-ctrl btn-skip" id="btnBackward10" title="10秒戻る">−10s</button>
+      <button class="btn btn-ctrl btn-skip" id="btnBackward" title="5秒戻る">−5s</button>
       <button class="btn btn-ctrl btn-play" id="btnPlay" title="再生/停止">▶</button>
-      <button class="btn btn-ctrl btn-skip" id="btnForward" title="2秒進む">+2s</button>
+      <button class="btn btn-ctrl btn-skip" id="btnForward" title="5秒進む">+5s</button>
+      <button class="btn btn-ctrl btn-skip" id="btnForward10" title="10秒進む">+10s</button>
     </div>
   </div>
 </div>
@@ -564,6 +577,8 @@
   const btnPlay = document.getElementById('btnPlay');
   const btnForward = document.getElementById('btnForward');
   const btnBackward = document.getElementById('btnBackward');
+  const btnForward10 = document.getElementById('btnForward10');
+  const btnBackward10 = document.getElementById('btnBackward10');
   const progressSlider = document.getElementById('progressSlider');
   const timeCurrent = document.getElementById('timeCurrent');
   const timeDuration = document.getElementById('timeDuration');
@@ -577,8 +592,9 @@
   const subFileInput = document.getElementById('subFileInput');
   const subSelect = document.getElementById('subSelect');
   const speedSelect = document.getElementById('speedSelect');
-  const subOverlay = document.getElementById('subOverlay');
-      const subSelector = document.getElementById('subSelector');
+  const subSelector = document.getElementById('subSelector');
+  const jumpInput = document.getElementById('jumpInput');
+  const btnJump = document.getElementById('btnJump');
 
   const playlist = [];
   let currentIndex = -1;
@@ -594,7 +610,6 @@
   // Subtitle state
   const subTracks = []; // { label, language, blobUrl, embedded }
   let subBlobUrls = [];
-  let lastCueText = ''; // track current cue to avoid re-rendering on every timeupdate
       let activeCueIdx = -1; // track highlighted cue in selector
       let repeatMode = 0;
       let repeatCue = null;
@@ -658,6 +673,20 @@
     return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
   }
 
+  function parseTimeInput(str) {
+    const s = (str || '').trim().replace(/時/g, ':').replace(/[分秒:：,，]/g, ':');
+    if (!s) return null;
+    const parts = s.split(':').map(p => p.trim()).filter(p => p !== '');
+    if (parts.length === 0 || parts.length > 3) return null;
+    const nums = parts.map(p => Number(p));
+    if (nums.some(n => !isFinite(n) || n < 0)) return null;
+    let secs = 0;
+    if (nums.length === 1) secs = nums[0];
+    else if (nums.length === 2) secs = nums[0] * 60 + nums[1];
+    else secs = nums[0] * 3600 + nums[1] * 60 + nums[2];
+    return secs;
+  }
+
   function setMedia(el) {
     if (media) {
       media.pause();
@@ -695,51 +724,15 @@
       }
     }
 
-    // Audio subtitle overlay: split cue into sentences, show one at a time
+    // Highlight current cue in the selector list
     if (!isVideo && subTracks.length > 0) {
       const t = subTracks.find(s => s._active);
       if (t && t._cues) {
         const ct = media.currentTime;
         const cueIdx = t._cues.findIndex(c => ct >= c.start && ct < c.end);
-        const cue = cueIdx >= 0 ? t._cues[cueIdx] : null;
-        let newText = '';
-        if (cue) {
-          highlightCue(cueIdx);
-          // Split into sentences: first try 。！？, then by spaces
-          let sentences = cue.text.split(/(?<=[。！？])/).filter(s => s.trim());
-          if (sentences.length <= 1) {
-            sentences = cue.text.split(/\s+/).filter(s => s.trim());
-          }
-          if (sentences.length <= 1) {
-            newText = cue.text.replace(/\n/g, ' ');
-          } else {
-            const progress = (ct - cue.start) / (cue.end - cue.start);
-            const idx = Math.min(Math.floor(progress * sentences.length), sentences.length - 1);
-            newText = sentences[idx];
-          }
-        } else {
-          highlightCue(-1);
-        }
-        if (newText !== lastCueText) {
-          lastCueText = newText;
-          subOverlay.textContent = newText;
-          const testEl = document.createElement('div');
-          const cs = getComputedStyle(subOverlay);
-          testEl.style.cssText = 'position:absolute;visibility:hidden;width:' + subOverlay.clientWidth + 'px;font:' + cs.font + ';line-height:' + cs.lineHeight + ';padding:0;white-space:nowrap';
-          testEl.textContent = newText;
-          document.body.appendChild(testEl);
-          const singleH = testEl.offsetHeight;
-          testEl.style.whiteSpace = 'normal';
-          const wrapH = testEl.offsetHeight;
-          document.body.removeChild(testEl);
-          subOverlay.style.textAlignLast = wrapH > singleH ? 'left' : 'center';
-        }
+        highlightCue(cueIdx);
       } else {
         highlightCue(-1);
-        if (lastCueText !== '') {
-          lastCueText = '';
-          subOverlay.textContent = '';
-        }
       }
     }
   }
@@ -867,8 +860,6 @@
       div.addEventListener('click', () => {
         if (media && isFinite(media.duration)) {
           media.currentTime = cue.start;
-          subOverlay.textContent = cue.text.replace(/\n/g, ' ');
-          lastCueText = cue.text.replace(/\n/g, ' ');
           highlightCue(i);
           selectedCue = { start: cue.start, end: cue.end, text: cue.text };
           btnRepeat.classList.remove('hidden');
@@ -975,10 +966,6 @@
         try { t.trackEl.mode = t._active ? 'showing' : 'hidden'; } catch {}
       }
     });
-    if (!isVideo && idx < 0) {
-        subOverlay.textContent = '';
-        lastCueText = '';
-    }
     updateSubUI();
   });
 
@@ -997,8 +984,6 @@
     subSelect.style.display = '';
     btnSub.classList.remove('active');
     btnSub.textContent = '字幕';
-    subOverlay.textContent = '';
-    lastCueText = '';
     subSelector.innerHTML = ''; activeCueIdx = -1;
     selectedCue = null;
     repeatMode = 0;
@@ -1575,12 +1560,41 @@
 
   btnForward.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
-    media.currentTime = Math.min(media.currentTime + 2, media.duration);
+    media.currentTime = Math.min(media.currentTime + 5, media.duration);
   });
 
   btnBackward.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
-    media.currentTime = Math.max(media.currentTime - 2, 0);
+    media.currentTime = Math.max(media.currentTime - 5, 0);
+  });
+
+  btnForward10.addEventListener('click', () => {
+    if (!media || !isFinite(media.duration)) return;
+    media.currentTime = Math.min(media.currentTime + 10, media.duration);
+  });
+
+  btnBackward10.addEventListener('click', () => {
+    if (!media || !isFinite(media.duration)) return;
+    media.currentTime = Math.max(media.currentTime - 10, 0);
+  });
+
+  function doJump() {
+    if (!media || !isFinite(media.duration)) {
+      showToast('请先加载音频/视频。');
+      return;
+    }
+    const secs = parseTimeInput(jumpInput.value);
+    if (secs === null) {
+      showToast('请输入时间。<br>例: 1:30 或 90');
+      return;
+    }
+    media.currentTime = Math.min(secs, media.duration);
+    jumpInput.value = '';
+  }
+
+  btnJump.addEventListener('click', doJump);
+  jumpInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') doJump();
   });
 
   progressSlider.addEventListener('input', () => {
