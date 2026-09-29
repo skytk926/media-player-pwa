@@ -1200,7 +1200,7 @@
     const cur = media.currentTime;
     setRange(cur, cur + 5);
     syncRepeatRange();
-    media.currentTime = wrapTime(cur + 5);
+    media.currentTime = Math.min(cur + 5, media.duration);
   });
 
   btnBackward.addEventListener('click', () => {
@@ -1217,7 +1217,7 @@
     const cur = media.currentTime;
     setRange(cur, cur + 10);
     syncRepeatRange();
-    media.currentTime = wrapTime(cur + 10);
+    media.currentTime = Math.min(cur + 10, media.duration);
   });
 
   btnBackward10.addEventListener('click', () => {
