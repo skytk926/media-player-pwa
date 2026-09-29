@@ -349,7 +349,6 @@
     display: flex;
     align-items: center;
     gap: clamp(6px, 1vw, 10px);
-    margin-bottom: clamp(10px, 1.4vw, 14px);
     flex-shrink: 0;
   }
   .range-sep {
@@ -358,6 +357,24 @@
     flex-shrink: 0;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
   }
+  .btn-reset {
+    height: clamp(34px, 5vw, 40px);
+    padding: 0 clamp(12px, 1.8vw, 16px);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(30, 22, 60, 0.6);
+    color: #c7d4e8;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s, transform 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .btn-reset:hover { color: #fff; }
+  .btn-reset:active { transform: scale(0.96); }
 
   /* Subtitle cue list */
   .sub-panel {
@@ -486,6 +503,13 @@
 
   <input type="range" class="slider" id="progressSlider" min="0" max="1000" value="0" step="1">
 
+  <div class="range-row">
+    <input type="text" class="jump-input" id="repeatStartInput" placeholder="開始 0:10" inputmode="text">
+    <span class="range-sep">〜</span>
+    <input type="text" class="jump-input" id="repeatEndInput" placeholder="終了 0:20" inputmode="text">
+    <button class="btn-reset" id="btnRangeReset">リセット</button>
+  </div>
+
   <div class="subtitle-bar" id="subtitleBar">
     <select class="sub-select" id="speedSelect" style="max-width:72px;flex:0 0 auto">
       <option value="0.5">0.5x</option>
@@ -500,12 +524,6 @@
     <button class="btn-loop" id="btnRepeat" title="音声をリピート">リピート</button>
     <input type="text" class="jump-input" id="jumpInput" placeholder="分:秒 例 1:30" inputmode="text">
     <button class="btn btn-jump" id="btnJump">ジャンプ</button>
-  </div>
-
-  <div class="range-row">
-    <input type="text" class="jump-input" id="repeatStartInput" placeholder="開始 0:10" inputmode="text">
-    <span class="range-sep">〜</span>
-    <input type="text" class="jump-input" id="repeatEndInput" placeholder="終了 0:20" inputmode="text">
   </div>
 
   <div class="bottom-row">
@@ -548,6 +566,7 @@
   const btnJump = document.getElementById('btnJump');
   const repeatStartInput = document.getElementById('repeatStartInput');
   const repeatEndInput = document.getElementById('repeatEndInput');
+  const btnRangeReset = document.getElementById('btnRangeReset');
 
   const playlist = [];
   let currentIndex = -1;
@@ -604,11 +623,22 @@
       repeatRange = { start: s, end: e };
       media.currentTime = s;
       media.play().then(() => { btnPlay.innerHTML = PAUSE_ICON; }).catch(() => {});
+      btnRepeat.textContent = '区間リピート中';
     } else {
       repeatAll = true;
+      btnRepeat.textContent = 'リピート中';
     }
-    btnRepeat.textContent = 'リピート中';
     btnRepeat.classList.add('loop-one');
+  });
+
+  btnRangeReset.addEventListener('click', () => {
+    repeatStartInput.value = '';
+    repeatEndInput.value = '';
+    if (repeatRange) {
+      repeatRange = null;
+      btnRepeat.textContent = 'リピート';
+      btnRepeat.classList.remove('loop-one');
+    }
   });
 
   function fmtFull(seconds) {
@@ -1141,24 +1171,40 @@
     }
   });
 
+  function setRange(start, end) {
+    const d = media.duration;
+    const s = Math.max(0, Math.min(start, d));
+    const e = Math.max(0, Math.min(end, d));
+    repeatStartInput.value = fmtFull(s);
+    repeatEndInput.value = fmtFull(e);
+  }
+
   btnForward.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
-    media.currentTime = Math.min(media.currentTime + 5, media.duration);
+    const cur = media.currentTime;
+    setRange(cur, cur + 5);
+    media.currentTime = Math.min(cur + 5, media.duration);
   });
 
   btnBackward.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
-    media.currentTime = Math.max(media.currentTime - 5, 0);
+    const cur = media.currentTime;
+    setRange(cur - 5, cur);
+    media.currentTime = Math.max(cur - 5, 0);
   });
 
   btnForward10.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
-    media.currentTime = Math.min(media.currentTime + 10, media.duration);
+    const cur = media.currentTime;
+    setRange(cur, cur + 10);
+    media.currentTime = Math.min(cur + 10, media.duration);
   });
 
   btnBackward10.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
-    media.currentTime = Math.max(media.currentTime - 10, 0);
+    const cur = media.currentTime;
+    setRange(cur - 10, cur);
+    media.currentTime = Math.max(cur - 10, 0);
   });
 
   // Press feedback: show red while pressing (touch + mouse), disappears on release
