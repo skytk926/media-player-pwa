@@ -684,10 +684,16 @@
     }
     timeCurrent.textContent = fmtTime(media.currentTime);
 
-    // Default the range box to a 10s window ending at the current position,
-    // following playback (including during repeat) until the user edits the box.
+    // Keep the range box following playback until the user edits it.
     if (!rangeEdited && !rangeFocused) {
-      setRangeFromCurrent(media.currentTime);
+      if (repeatRange) {
+        // Range repeat: freeze the end time, but let the start time follow
+        // the current playback position.
+        repeatStartInput.value = fmtFull(media.currentTime);
+      } else {
+        // Default: a 10s window ending at the current position.
+        setRangeFromCurrent(media.currentTime);
+      }
     }
 
     // Range repeat: loop back to start when reaching the end.
