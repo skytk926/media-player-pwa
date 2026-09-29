@@ -565,6 +565,8 @@
       let activeCueIdx = -1; // track highlighted cue in selector
       let repeatAll = false;
       let repeatRange = null;
+      let rangeEdited = false; // true once the user manually types a range
+      let rangeFocused = false; // true while the user is editing a range box
 
   function showToast(msg, duration = 3000) {
     const overlay = document.createElement('div');
@@ -599,24 +601,23 @@
       return;
     }
 
-    // Idle -> start repeat: resolve the boxes into a valid range (null = no range)
-    const sRaw = repeatStartInput.value.trim();
-    const eRaw = repeatEndInput.value.trim();
+    // Idle -> start repeat: repeat the range shown in the box (by default the
+    // last 10s), or the whole audio when the box holds no valid range.
     let range = null;
-    if (sRaw !== '' || eRaw !== '') {
-      const s = parseTimeInput(sRaw);
-      const e = parseTimeInput(eRaw);
-      if (s === null || e === null) {
-        showToast('開始・終了を正しく入力してください。<br>例: 0:10 〜 0:20');
-        return;
-      }
+    const s = parseTimeInput(repeatStartInput.value);
+    const e = parseTimeInput(repeatEndInput.value);
+    if (s !== null && e !== null) {
       const end = Math.min(e, media.duration);
-      if (end <= s) {
+      if (end > s) {
+        if (end < e) repeatEndInput.value = fmtFull(end);
+        range = { start: s, end };
+      } else if (rangeEdited) {
         showToast('開始・終了を正しく入力してください。<br>例: 0:10 〜 0:20');
         return;
       }
-      if (end < e) repeatEndInput.value = fmtFull(end);
-      range = { start: s, end };
+    } else if (rangeEdited) {
+      showToast('開始・終了を正しく入力してください。<br>例: 0:10 〜 0:20');
+      return;
     }
 
     if (range) {
@@ -682,6 +683,12 @@
       updateSliderFill();
     }
     timeCurrent.textContent = fmtTime(media.currentTime);
+
+    // Default the range box to a 10s window ending at the current position,
+    // following playback until the user types their own range or starts a loop.
+    if (!repeatRange && !repeatAll && !rangeEdited && !rangeFocused) {
+      setRangeFromCurrent(media.currentTime);
+    }
 
     // Range repeat: loop back to start when reaching the end.
     // When the loop end equals the audio duration, skip the seek here and let
@@ -846,6 +853,7 @@
     subSelector.innerHTML = ''; activeCueIdx = -1;
     repeatRange = null;
     repeatAll = false;
+    rangeEdited = false;
     btnRepeat.textContent = 'リピート';
     btnRepeat.classList.remove('loop-one');
   }
@@ -979,6 +987,7 @@
     timeDuration.textContent = '00:00';
     repeatRange = null;
     repeatAll = false;
+    rangeEdited = false;
     btnRepeat.textContent = 'リピート';
     btnRepeat.classList.remove('loop-one');
 
@@ -1182,12 +1191,14 @@
     return v;
   }
 
-  function setRange(start, end) {
+  // Default the range box to a 10s window ending at the current playback
+  // position: end = current, start = current - 10 (clamped to 0).
+  function setRangeFromCurrent(cur) {
     const d = media.duration;
-    const s = wrapTime(start);
-    const e = Math.min(end, d);
-    repeatStartInput.value = fmtFull(s);
-    repeatEndInput.value = fmtFull(e);
+    const start = Math.max(0, cur - 10);
+    const end = Math.min(cur, d);
+    repeatStartInput.value = fmtFull(start);
+    repeatEndInput.value = fmtFull(end);
   }
 
   function readRangeFromInputs() {
@@ -1210,7 +1221,7 @@
   btnForward.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
     const cur = media.currentTime;
-    setRange(cur, cur + 5);
+    setRangeFromCurrent(cur);
     syncRepeatRange();
     media.currentTime = Math.min(cur + 5, media.duration);
   });
@@ -1218,16 +1229,15 @@
   btnBackward.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
     const cur = media.currentTime;
-    const start = wrapTime(cur - 5);
-    setRange(start, start + 5);
+    setRangeFromCurrent(cur);
     syncRepeatRange();
-    media.currentTime = start;
+    media.currentTime = wrapTime(cur - 5);
   });
 
   btnForward10.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
     const cur = media.currentTime;
-    setRange(cur, cur + 10);
+    setRangeFromCurrent(cur);
     syncRepeatRange();
     media.currentTime = Math.min(cur + 10, media.duration);
   });
@@ -1235,15 +1245,20 @@
   btnBackward10.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
     const cur = media.currentTime;
-    const start = wrapTime(cur - 10);
-    setRange(start, start + 10);
+    setRangeFromCurrent(cur);
     syncRepeatRange();
-    media.currentTime = start;
+    media.currentTime = wrapTime(cur - 10);
   });
 
-  // While range-repeat is active, editing the boxes updates the loop immediately
+  // While range-repeat is active, editing the boxes updates the loop immediately.
+  // A manual edit also stops the automatic "last 10s" default from overwriting.
   [repeatStartInput, repeatEndInput].forEach((el) => {
-    el.addEventListener('input', syncRepeatRange);
+    el.addEventListener('focus', () => { rangeFocused = true; });
+    el.addEventListener('blur', () => { rangeFocused = false; });
+    el.addEventListener('input', () => {
+      rangeEdited = repeatStartInput.value.trim() !== '' || repeatEndInput.value.trim() !== '';
+      syncRepeatRange();
+    });
   });
 
   // Press feedback: show red while pressing (touch + mouse), disappears on release
