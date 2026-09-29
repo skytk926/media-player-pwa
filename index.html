@@ -344,6 +344,21 @@
   }
   .btn-jump:hover { background: linear-gradient(135deg, #5b9dff 0%, #4a7ef0 100%); }
 
+  /* Repeat range (A-B) */
+  .range-row {
+    display: flex;
+    align-items: center;
+    gap: clamp(6px, 1vw, 10px);
+    margin-bottom: clamp(10px, 1.4vw, 14px);
+    flex-shrink: 0;
+  }
+  .range-sep {
+    color: #a0b4d0;
+    font-size: 16px;
+    flex-shrink: 0;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  }
+
   /* Subtitle cue list */
   .sub-panel {
     flex: 0 0 auto;
@@ -487,6 +502,12 @@
     <button class="btn btn-jump" id="btnJump">ジャンプ</button>
   </div>
 
+  <div class="range-row">
+    <input type="text" class="jump-input" id="repeatStartInput" placeholder="開始 0:10" inputmode="text">
+    <span class="range-sep">〜</span>
+    <input type="text" class="jump-input" id="repeatEndInput" placeholder="終了 0:20" inputmode="text">
+  </div>
+
   <div class="bottom-row">
     <div class="controls">
       <div class="controls-row">
@@ -525,6 +546,8 @@
   const subSelector = document.getElementById('subSelector');
   const jumpInput = document.getElementById('jumpInput');
   const btnJump = document.getElementById('btnJump');
+  const repeatStartInput = document.getElementById('repeatStartInput');
+  const repeatEndInput = document.getElementById('repeatEndInput');
 
   const playlist = [];
   let currentIndex = -1;
@@ -540,6 +563,7 @@
   let subBlobUrls = [];
       let activeCueIdx = -1; // track highlighted cue in selector
       let repeatAll = false;
+      let repeatRange = null;
 
   function showToast(msg, duration = 3000) {
     const overlay = document.createElement('div');
@@ -554,17 +578,37 @@
 
   btnRepeat.addEventListener('click', () => {
     if (!media || !media.src) {
-      showToast('请先加载音频/视频');
+      showToast('音声/動画を先に読み込んでください');
       return;
     }
-    repeatAll = !repeatAll;
-    if (repeatAll) {
-      btnRepeat.textContent = 'リピート中';
-      btnRepeat.classList.add('loop-one');
-    } else {
+    // Cancel any active repeat (whole or range)
+    if (repeatAll || repeatRange) {
+      repeatAll = false;
+      repeatRange = null;
       btnRepeat.textContent = 'リピート';
       btnRepeat.classList.remove('loop-one');
+      return;
     }
+    // Determine mode: range repeat if start/end are provided, else whole audio
+    const s = parseTimeInput(repeatStartInput.value);
+    const e = parseTimeInput(repeatEndInput.value);
+    if (s !== null || e !== null) {
+      if (s === null || e === null || e <= s) {
+        showToast('開始・終了を正しく入力してください。<br>例: 0:10 〜 0:20');
+        return;
+      }
+      if (e > media.duration) {
+        showToast('終了時間が音声の長さを超えています。');
+        return;
+      }
+      repeatRange = { start: s, end: e };
+      media.currentTime = s;
+      media.play().then(() => { btnPlay.innerHTML = PAUSE_ICON; }).catch(() => {});
+    } else {
+      repeatAll = true;
+    }
+    btnRepeat.textContent = 'リピート中';
+    btnRepeat.classList.add('loop-one');
   });
 
   function fmtFull(seconds) {
@@ -619,6 +663,11 @@
     }
     timeCurrent.textContent = fmtTime(media.currentTime);
 
+    // Range repeat: loop back to start when reaching the end
+    if (repeatRange && media.currentTime >= repeatRange.end) {
+      media.currentTime = repeatRange.start;
+    }
+
     // Highlight current cue in the selector list
     if (!isVideo && subTracks.length > 0) {
       const t = subTracks.find(s => s._active);
@@ -649,6 +698,11 @@
   function onEnded() {
     if (repeatAll) {
       media.currentTime = 0;
+      media.play().catch(() => {});
+      return;
+    }
+    if (repeatRange) {
+      media.currentTime = repeatRange.start;
       media.play().catch(() => {});
       return;
     }
@@ -767,6 +821,7 @@
     subBlobUrls.length = 0;
     subTracks.length = 0;
     subSelector.innerHTML = ''; activeCueIdx = -1;
+    repeatRange = null;
     repeatAll = false;
     btnRepeat.textContent = 'リピート';
     btnRepeat.classList.remove('loop-one');
@@ -899,6 +954,7 @@
     updateSliderFill();
     timeCurrent.textContent = '00:00';
     timeDuration.textContent = '00:00';
+    repeatRange = null;
     repeatAll = false;
     btnRepeat.textContent = 'リピート';
     btnRepeat.classList.remove('loop-one');
