@@ -685,8 +685,8 @@
     timeCurrent.textContent = fmtTime(media.currentTime);
 
     // Default the range box to a 10s window ending at the current position,
-    // following playback until the user types their own range or starts a loop.
-    if (!repeatRange && !repeatAll && !rangeEdited && !rangeFocused) {
+    // following playback (including during repeat) until the user edits the box.
+    if (!rangeEdited && !rangeFocused) {
       setRangeFromCurrent(media.currentTime);
     }
 
@@ -1220,34 +1220,22 @@
 
   btnForward.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
-    const cur = media.currentTime;
-    setRangeFromCurrent(cur);
-    syncRepeatRange();
-    media.currentTime = Math.min(cur + 5, media.duration);
+    media.currentTime = Math.min(media.currentTime + 5, media.duration);
   });
 
   btnBackward.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
-    const cur = media.currentTime;
-    setRangeFromCurrent(cur);
-    syncRepeatRange();
-    media.currentTime = wrapTime(cur - 5);
+    media.currentTime = wrapTime(media.currentTime - 5);
   });
 
   btnForward10.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
-    const cur = media.currentTime;
-    setRangeFromCurrent(cur);
-    syncRepeatRange();
-    media.currentTime = Math.min(cur + 10, media.duration);
+    media.currentTime = Math.min(media.currentTime + 10, media.duration);
   });
 
   btnBackward10.addEventListener('click', () => {
     if (!media || !isFinite(media.duration)) return;
-    const cur = media.currentTime;
-    setRangeFromCurrent(cur);
-    syncRepeatRange();
-    media.currentTime = wrapTime(cur - 10);
+    media.currentTime = wrapTime(media.currentTime - 10);
   });
 
   // While range-repeat is active, editing the boxes updates the loop immediately.
