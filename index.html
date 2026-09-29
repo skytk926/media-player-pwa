@@ -90,6 +90,7 @@
     white-space: nowrap;
     color: #fff;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
   .btn:hover { transform: translateY(-2px); filter: brightness(1.08); }
   .btn:active { transform: translateY(0) scale(0.97); }
@@ -256,6 +257,7 @@
     gap: 4px;
     transition: background 0.15s, color 0.15s, transform 0.15s;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
     background: rgba(30, 22, 60, 0.6);
     color: #fff;
     flex-shrink: 0;
@@ -313,17 +315,9 @@
   }
 
   /* Jump to time */
-  .jump-row {
-    display: flex;
-    align-items: center;
-    gap: clamp(6px, 1vw, 10px);
-    margin-top: clamp(4px, 0.6vw, 8px);
-    margin-bottom: clamp(4px, 0.8vw, 8px);
-    flex-shrink: 0;
-  }
   .jump-input {
     flex: 0 1 auto;
-    width: clamp(110px, 26vw, 160px);
+    width: clamp(90px, 22vw, 140px);
     background: rgba(18, 14, 42, 0.8);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 10px;
@@ -341,8 +335,8 @@
     background: linear-gradient(135deg, #4a90ff 0%, #3a6ee8 100%);
     box-shadow: 0 8px 20px rgba(58, 110, 232, 0.35);
     border-radius: 14px;
-    padding: 12px 24px;
-    font-size: 22px;
+    padding: 10px 16px;
+    font-size: 18px;
     font-weight: 600;
     white-space: nowrap;
     flex-shrink: 0;
@@ -489,9 +483,6 @@
       <option value="2">2x</option>
     </select>
     <button class="btn-loop" id="btnRepeat" title="選択字幕をリピート">重复</button>
-  </div>
-
-  <div class="jump-row">
     <input type="text" class="jump-input" id="jumpInput" placeholder="分:秒 例 1:30" inputmode="text">
     <button class="btn btn-jump" id="btnJump">跳转</button>
   </div>
@@ -549,7 +540,7 @@
   const subTracks = []; // { label, language, blobUrl, embedded }
   let subBlobUrls = [];
       let activeCueIdx = -1; // track highlighted cue in selector
-      let repeatCue = null;
+      let repeatAll = false;
 
   function showToast(msg, duration = 3000) {
     const overlay = document.createElement('div');
@@ -562,31 +553,19 @@
     document.body.appendChild(overlay);
   }
 
-  function currentCue() {
-    const t = subTracks.find(s => s._active);
-    if (!t || !t._cues || !media || !isFinite(media.duration)) return null;
-    const ct = media.currentTime;
-    return t._cues.find(c => ct >= c.start && ct < c.end) || null;
-  }
-
   btnRepeat.addEventListener('click', () => {
-    if (!media || !isFinite(media.duration)) return;
-    if (repeatCue) {
-      repeatCue = null;
+    if (!media || !media.src) {
+      showToast('请先加载音频/视频');
+      return;
+    }
+    repeatAll = !repeatAll;
+    if (repeatAll) {
+      btnRepeat.textContent = '重复中';
+      btnRepeat.classList.add('loop-one');
+    } else {
       btnRepeat.textContent = '重复';
       btnRepeat.classList.remove('loop-one');
-      return;
     }
-    const cue = currentCue();
-    if (!cue) {
-      showToast('当前没有正在播放的字幕段落');
-      return;
-    }
-    repeatCue = { start: cue.start, end: cue.end };
-    media.currentTime = cue.start;
-    media.play().then(() => { btnPlay.innerHTML = PAUSE_ICON; }).catch(() => {});
-    btnRepeat.textContent = '重复中';
-    btnRepeat.classList.add('loop-one');
   });
 
   function fmtFull(seconds) {
@@ -641,11 +620,6 @@
     }
     timeCurrent.textContent = fmtTime(media.currentTime);
 
-    // Repeat: loop current cue continuously
-    if (repeatCue && media.currentTime >= repeatCue.end) {
-      media.currentTime = repeatCue.start;
-    }
-
     // Highlight current cue in the selector list
     if (!isVideo && subTracks.length > 0) {
       const t = subTracks.find(s => s._active);
@@ -674,14 +648,11 @@
   }
 
   function onEnded() {
-    if (repeatCue) {
-      media.currentTime = repeatCue.start;
+    if (repeatAll) {
+      media.currentTime = 0;
       media.play().catch(() => {});
       return;
     }
-    repeatCue = null;
-    btnRepeat.textContent = '重复';
-    btnRepeat.classList.remove('loop-one');
     btnPlay.innerHTML = PLAY_ICON;
   }
 
@@ -730,9 +701,6 @@
         if (media && isFinite(media.duration)) {
           media.currentTime = cue.start;
           highlightCue(i);
-          repeatCue = null;
-          btnRepeat.textContent = '重复';
-          btnRepeat.classList.remove('loop-one');
           media.play().then(() => { btnPlay.innerHTML = PAUSE_ICON; }).catch(() => {});
         }
       });
@@ -839,7 +807,7 @@
     subTracks.length = 0;
     subSelect.style.display = '';
     subSelector.innerHTML = ''; activeCueIdx = -1;
-    repeatCue = null;
+    repeatAll = false;
     btnRepeat.textContent = '重复';
     btnRepeat.classList.remove('loop-one');
   }
@@ -971,7 +939,7 @@
     updateSliderFill();
     timeCurrent.textContent = '00:00';
     timeDuration.textContent = '00:00';
-    repeatCue = null;
+    repeatAll = false;
     btnRepeat.textContent = '重复';
     btnRepeat.classList.remove('loop-one');
 
