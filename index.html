@@ -1038,33 +1038,29 @@
     const files = Array.from(fileInput.files).filter(f => !SUB_EXTS.test(f.name));
     if (files.length === 0) return;
 
-    let addedCount = 0;
+    let toAdd = files;
 
     // Check for unsupported formats
     const unsupported = files.filter(f => !MEDIA_EXTS.test(f.name));
     if (unsupported.length > 0) {
       const names = unsupported.map(f => f.name).join(', ');
       showToast('未対応の形式です:<br>' + names + '<br><br>対応形式: WAV, MP3, MP4, M4A, AAC, FLAC, OGG, WebM, MOV, MKV, AVI 等');
-      // Still add supported files only
-      const supported = files.filter(f => MEDIA_EXTS.test(f.name));
-      if (supported.length === 0) { fileInput.value = ''; return; }
-      supported.forEach((file) => {
-        const objectUrl = URL.createObjectURL(file);
-        playlist.push({ file, objectUrl, name: file.name });
-      });
-      addedCount = supported.length;
-    } else {
-      files.forEach((file) => {
-        const objectUrl = URL.createObjectURL(file);
-        playlist.push({ file, objectUrl, name: file.name });
-      });
-      addedCount = files.length;
+      toAdd = files.filter(f => MEDIA_EXTS.test(f.name));
+      if (toAdd.length === 0) { fileInput.value = ''; return; }
     }
 
-    if (currentIndex === -1) {
-      currentIndex = playlist.length - addedCount;
-      loadFile(currentIndex);
-    }
+    // Re-selection: new files take precedence — replace the current playlist
+    if (media) media.pause();
+    playlist.forEach(item => URL.revokeObjectURL(item.objectUrl));
+    playlist.length = 0;
+
+    toAdd.forEach((file) => {
+      const objectUrl = URL.createObjectURL(file);
+      playlist.push({ file, objectUrl, name: file.name });
+    });
+
+    currentIndex = 0;
+    loadFile(0);
 
     updateFileCount();
     fileInput.value = '';
