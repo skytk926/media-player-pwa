@@ -205,11 +205,11 @@
   }
 
   .time-current, .time-duration {
-    font-size: clamp(12px, 1.6vw, 14px);
+    font-size: clamp(24px, 3.2vw, 28px);
     font-variant-numeric: tabular-nums;
     color: #fff;
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
-    min-width: clamp(44px, 6vw, 54px);
+    min-width: clamp(88px, 12vw, 108px);
   }
   .time-duration { text-align: right; }
 
@@ -306,17 +306,6 @@
     margin-top: clamp(4px, 0.6vw, 8px);
     flex-shrink: 0;
   }
-  #btnLoop {
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    width: clamp(54px, 9vw, 68px);
-    padding: 0;
-    border-radius: 50%;
-    font-size: clamp(24px, 4vw, 30px);
-  }
-
   .btn-loop {
     height: clamp(54px, 9vw, 68px);
     padding: 0 clamp(18px, 2.8vw, 24px);
@@ -381,9 +370,9 @@
     font-size: clamp(20px, 3vw, 24px);
     font-weight: 700;
   }
-  .btn-skip:hover {
-    background: rgba(233, 69, 96, 0.25);
-    border-color: rgba(233, 69, 96, 0.5);
+  .btn-skip:active {
+    background: rgba(233, 69, 96, 0.35);
+    border-color: rgba(233, 69, 96, 0.6);
   }
 
   /* Jump to time */
@@ -398,17 +387,18 @@
   .jump-input {
     flex: 0 1 auto;
     width: clamp(110px, 26vw, 160px);
-    background: rgba(30, 22, 60, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(18, 14, 42, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 10px;
     color: #fff;
     font-size: 16px;
     padding: 6px 10px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
     outline: none;
     font-variant-numeric: tabular-nums;
     -webkit-tap-highlight-color: transparent;
   }
-  .jump-input::placeholder { color: #6b7b96; }
+  .jump-input::placeholder { color: #b8c5dc; opacity: 1; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); }
   .jump-input:focus { border-color: rgba(233, 69, 96, 0.5); }
   .btn-jump {
     background: linear-gradient(135deg, #4a90ff 0%, #3a6ee8 100%);
@@ -572,7 +562,6 @@
   </div>
 
   <div class="bottom-row">
-    <button class="btn-loop" id="btnLoop" title="リピートモード">🔁</button>
     <div class="controls">
       <div class="controls-row">
         <button class="btn btn-ctrl btn-skip" id="btnBackward" title="5秒戻る">−5s</button>
@@ -607,7 +596,6 @@
   const videoElem = document.getElementById('videoElem');
   const audioElem = document.getElementById('audioElem');
   const playlistEl = document.getElementById('playlist');
-  const btnLoop = document.getElementById('btnLoop');
   const subSelect = document.getElementById('subSelect');
   const speedSelect = document.getElementById('speedSelect');
   const subSelector = document.getElementById('subSelector');
@@ -620,10 +608,6 @@
   let isVideo = false;
   let dragging = false;
 
-  // 0=none 1=one 2=all
-  let loopMode = 0;
-  const loopLabels = ['繰り返しオフ', '1曲リピート', '全曲リピート'];
-  const loopIcons = ['🔁', '🔂', '🔁'];
   const PLAY_ICON = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" style="display:block"><path d="M8 5v14l11-7z"/></svg>';
   const PAUSE_ICON = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" style="display:block"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
 
@@ -631,10 +615,7 @@
   const subTracks = []; // { label, language, blobUrl, embedded }
   let subBlobUrls = [];
       let activeCueIdx = -1; // track highlighted cue in selector
-      let repeatMode = 0;
       let repeatCue = null;
-      let repeatRemaining = 0;
-      let selectedCue = null;
 
   function showToast(msg, duration = 3000) {
     const overlay = document.createElement('div');
@@ -647,34 +628,31 @@
     document.body.appendChild(overlay);
   }
 
-  function updateLoopBtn() {
-    btnLoop.textContent = loopIcons[loopMode];
-    btnLoop.title = loopLabels[loopMode];
-    btnLoop.className = 'btn-loop';
-    if (loopMode === 1) btnLoop.classList.add('loop-one');
-    if (loopMode === 2) btnLoop.classList.add('loop-all');
+  function currentCue() {
+    const t = subTracks.find(s => s._active);
+    if (!t || !t._cues || !media || !isFinite(media.duration)) return null;
+    const ct = media.currentTime;
+    return t._cues.find(c => ct >= c.start && ct < c.end) || null;
   }
 
-  btnLoop.addEventListener('click', () => {
-    loopMode = (loopMode + 1) % 3;
-    updateLoopBtn();
-  });
-
   btnRepeat.addEventListener('click', () => {
-    if (!selectedCue) return;
-    repeatMode = (repeatMode + 1) % 5;
-    const labels = ['オフ','1回','2回','3回','4回'];
-    btnRepeat.textContent = labels[repeatMode];
-    if (repeatMode > 0) btnRepeat.classList.add('loop-one');
-    else btnRepeat.classList.remove('loop-one');
-    if (repeatMode > 0 && selectedCue) {
-      repeatCue = { start: selectedCue.start, end: selectedCue.end };
-      repeatRemaining = repeatMode;
-      media.currentTime = selectedCue.start;
-    } else {
+    if (!media || !isFinite(media.duration)) return;
+    if (repeatCue) {
       repeatCue = null;
-      repeatRemaining = 0;
+      btnRepeat.textContent = '重复';
+      btnRepeat.classList.remove('loop-one');
+      return;
     }
+    const cue = currentCue();
+    if (!cue) {
+      showToast('当前没有正在播放的字幕段落');
+      return;
+    }
+    repeatCue = { start: cue.start, end: cue.end };
+    media.currentTime = cue.start;
+    media.play().then(() => { btnPlay.innerHTML = PAUSE_ICON; }).catch(() => {});
+    btnRepeat.textContent = '重复中';
+    btnRepeat.classList.add('loop-one');
   });
 
   function fmtFull(seconds) {
@@ -728,20 +706,9 @@
     }
     timeCurrent.textContent = fmtTime(media.currentTime);
 
-    // Repeat mode: loop selected cue
-    if (repeatCue && repeatRemaining > 0) {
-      if (media.currentTime >= repeatCue.end) {
-        repeatRemaining--;
-        if (repeatRemaining > 0) {
-          media.currentTime = repeatCue.start;
-        } else {
-          repeatCue = null;
-          repeatMode = 0;
-          repeatRemaining = 0;
-          btnRepeat.textContent = '重复';
-          btnRepeat.classList.remove('loop-one');
-        }
-      }
+    // Repeat: loop current cue continuously
+    if (repeatCue && media.currentTime >= repeatCue.end) {
+      media.currentTime = repeatCue.start;
     }
 
     // Highlight current cue in the selector list
@@ -765,30 +732,14 @@
   }
 
   function onEnded() {
-    selectedCue = null;
-    repeatMode = 0;
+    if (repeatCue) {
+      media.currentTime = repeatCue.start;
+      media.play().catch(() => {});
+      return;
+    }
     repeatCue = null;
-    repeatRemaining = 0;
     btnRepeat.textContent = '重复';
     btnRepeat.classList.remove('loop-one');
-    if (loopMode === 1) {
-      media.currentTime = 0;
-      media.play().catch(() => {});
-      return;
-    }
-    if (loopMode === 2 && playlist.length > 1) {
-      let next = currentIndex;
-      let attempts = 0;
-      do {
-        next = (next + 1) % playlist.length;
-        attempts++;
-      } while (/\.(srt|vtt)$/i.test(playlist[next].name) && attempts < playlist.length);
-      if (attempts >= playlist.length) return;
-      currentIndex = next;
-      loadFile(currentIndex);
-      media.play().catch(() => {});
-      return;
-    }
     btnPlay.innerHTML = PLAY_ICON;
   }
 
@@ -837,11 +788,7 @@
         if (media && isFinite(media.duration)) {
           media.currentTime = cue.start;
           highlightCue(i);
-          selectedCue = { start: cue.start, end: cue.end, text: cue.text };
-          btnRepeat.classList.remove('hidden');
-          repeatMode = 0;
           repeatCue = null;
-          repeatRemaining = 0;
           btnRepeat.textContent = '重复';
           btnRepeat.classList.remove('loop-one');
           media.play().then(() => { btnPlay.innerHTML = PAUSE_ICON; }).catch(() => {});
@@ -950,10 +897,7 @@
     subTracks.length = 0;
     subSelect.style.display = '';
     subSelector.innerHTML = ''; activeCueIdx = -1;
-    selectedCue = null;
-    repeatMode = 0;
     repeatCue = null;
-    repeatRemaining = 0;
     btnRepeat.textContent = '重复';
     btnRepeat.classList.remove('loop-one');
   }
@@ -1124,10 +1068,7 @@
     progressSlider.value = 0;
     timeCurrent.textContent = '00:00';
     timeDuration.textContent = '00:00';
-    selectedCue = null;
-    repeatMode = 0;
     repeatCue = null;
-    repeatRemaining = 0;
     btnRepeat.textContent = '重复';
     btnRepeat.classList.remove('loop-one');
 
@@ -1150,8 +1091,10 @@
   function updateFileCount() {
     if (playlist.length === 0) {
       fileName.textContent = 'ファイル未選択';
+    } else if (currentIndex >= 0 && currentIndex < playlist.length) {
+      fileName.textContent = playlist[currentIndex].name;
     } else {
-      fileName.textContent = playlist.length + '件選択中';
+      fileName.textContent = playlist[0].name;
     }
   }
 
@@ -1416,8 +1359,6 @@
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js');
   }
-
-  updateLoopBtn();
 </script>
 
 </body>
