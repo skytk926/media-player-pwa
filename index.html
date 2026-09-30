@@ -1236,8 +1236,11 @@
       }
 
       if (fragSecs !== null && fragSecs > 0) {
+        // The #t= media fragment is honored by iOS at load time — including for
+        // blob: URLs (device files), where a pre-play currentTime is just as
+        // ignored as it is for HTTP. So route both through the same reload.
         const base = (media.currentSrc || media.src || '').split('#')[0];
-        if (base && !/^blob:/i.test(base)) {
+        if (base) {
           media.src = base + '#t=' + fragSecs.toFixed(2);
           media.load();
           media.playbackRate = parseFloat(speedSelect.value);
@@ -1245,7 +1248,7 @@
           btnPlay.innerHTML = PAUSE_ICON;
           return;
         }
-        // blob: URL (device file) — a plain seek is reliable enough there.
+        // No source URL to rewrite — fall back to a plain seek.
         media.currentTime = fragSecs;
       }
 
