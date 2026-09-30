@@ -569,6 +569,7 @@
       let rangeEdited = false; // true once the user manually types a range
       let rangeFocused = false; // true while the user is editing a range box
       let justSkipped = false; // true right after a ±5s/±10s skip, suppresses the loop snap-back once
+      let rangePinned = false; // true after a skip in normal playback: hold the jumped-over span
 
   function showToast(msg, duration = 3000) {
     const overlay = document.createElement('div');
@@ -694,7 +695,7 @@
         // Range repeat: freeze the end time, but let the start time follow
         // the current playback position.
         repeatStartInput.value = fmtFull(media.currentTime);
-      } else {
+      } else if (!rangePinned) {
         // Default: a 10s window ending at the current position.
         setRangeFromCurrent(media.currentTime);
       }
@@ -878,6 +879,7 @@
     repeatRange = null;
     repeatAll = false;
     rangeEdited = false;
+    rangePinned = false;
     btnRepeat.textContent = 'リピート';
     btnRepeat.classList.remove('loop-one');
   }
@@ -1013,6 +1015,7 @@
     repeatRange = null;
     repeatAll = false;
     rangeEdited = false;
+    rangePinned = false;
     btnRepeat.textContent = 'リピート';
     btnRepeat.classList.remove('loop-one');
 
@@ -1248,18 +1251,28 @@
     const cur = media.currentTime;
     const t = cur + delta;
     justSkipped = true;
+    let nt;
     if (repeatRange) {
-      // Skipping redefines the loop to the span just jumped over:
-      // forward +5 from 27 -> 32 -> range becomes 27~32.
-      const nt = Math.max(0, Math.min(t, media.duration));
-      repeatRange = { start: Math.min(cur, nt), end: Math.max(cur, nt) };
-      repeatStartInput.value = fmtFull(repeatRange.start);
-      repeatEndInput.value = fmtFull(repeatRange.end);
-      media.currentTime = nt;
+      nt = Math.max(0, Math.min(t, media.duration));
     } else if (delta >= 0) {
-      media.currentTime = Math.min(t, media.duration);
+      nt = Math.min(t, media.duration);
     } else {
-      media.currentTime = wrapTime(t);
+      nt = wrapTime(t);
+    }
+    media.currentTime = nt;
+
+    // Show the span just jumped over (old position ~ new position) in the
+    // range box, for every skip and in both normal playback and range repeat:
+    // e.g. -5s at 7:39 -> 7:34 ~ 7:39, +5s at 7:34 -> 7:34 ~ 7:39.
+    const start = Math.min(cur, nt);
+    const end = Math.max(cur, nt);
+    repeatStartInput.value = fmtFull(start);
+    repeatEndInput.value = fmtFull(end);
+    if (repeatRange) {
+      repeatRange = { start, end };
+    } else {
+      // Hold this span so the "last 10s" auto-follow doesn't overwrite it.
+      rangePinned = true;
     }
   }
 
@@ -1275,6 +1288,7 @@
     el.addEventListener('blur', () => { rangeFocused = false; });
     el.addEventListener('input', () => {
       rangeEdited = repeatStartInput.value.trim() !== '' || repeatEndInput.value.trim() !== '';
+      rangePinned = false;
       syncRepeatRange();
     });
   });
