@@ -555,6 +555,7 @@
   let media = null;
   let isVideo = false;
   let dragging = false;
+  let pendingSeek = null; // fraction 0..1 requested before metadata loaded
 
   const PLAY_ICON = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" style="display:block"><path d="M8 5v14l11-7z"/></svg>';
   const PAUSE_ICON = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" style="display:block"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
@@ -726,9 +727,20 @@
   function onLoaded() {
     if (!media || !isFinite(media.duration)) return;
     timeDuration.textContent = fmtTime(media.duration);
-    progressSlider.value = 0;
+    if (pendingSeek !== null) {
+      // The user dragged the slider before the metadata (duration) arrived.
+      // Apply that seek now instead of dropping it, so playback starts at the
+      // position the user chose rather than 0.
+      const frac = Math.max(0, Math.min(1, pendingSeek));
+      media.currentTime = frac * media.duration;
+      progressSlider.value = Math.round(frac * 1000);
+      timeCurrent.textContent = fmtTime(media.currentTime);
+      pendingSeek = null;
+    } else {
+      progressSlider.value = 0;
+      timeCurrent.textContent = '00:00';
+    }
     updateSliderFill();
-    timeCurrent.textContent = '00:00';
   }
 
   function updateSliderFill() {
@@ -994,6 +1006,7 @@
 
     fileName.textContent = item.name;
     progressSlider.value = 0;
+    pendingSeek = null;
     updateSliderFill();
     timeCurrent.textContent = '00:00';
     timeDuration.textContent = '00:00';
@@ -1294,15 +1307,29 @@
   });
 
   progressSlider.addEventListener('input', () => {
-    if (!media || !isFinite(media.duration)) return;
+    if (!media) return;
     dragging = true;
-    media.currentTime = (progressSlider.value / 1000) * media.duration;
-    timeCurrent.textContent = fmtTime(media.currentTime);
+    const frac = Math.max(0, Math.min(1, progressSlider.value / 1000));
+    if (isFinite(media.duration)) {
+      media.currentTime = frac * media.duration;
+      timeCurrent.textContent = fmtTime(media.currentTime);
+      pendingSeek = null;
+    } else {
+      // Metadata not loaded yet — remember the target so onLoaded applies it.
+      pendingSeek = frac;
+    }
     updateSliderFill();
   });
 
   progressSlider.addEventListener('change', () => {
     dragging = false;
+  });
+
+  // Belt-and-braces: clear `dragging` on every gesture/input that ends a drag.
+  // Relying only on 'change' can leave the flag stuck true on some mobile
+  // browsers (especially iOS), which freezes the progress bar during playback.
+  ['pointerup', 'pointercancel', 'touchend', 'touchcancel', 'keyup', 'blur'].forEach((evt) => {
+    progressSlider.addEventListener(evt, () => { dragging = false; });
   });
 
   speedSelect.addEventListener('change', () => {
