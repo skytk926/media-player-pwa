@@ -1212,19 +1212,24 @@
 
   // Start a device-file (blob:) source from `target` seconds. iOS ignores a
   // currentTime set before the element's very first play, and #t= fragments do
-  // not work on blob URLs, so we first "activate" the element with a muted
-  // play, then pause, seek and resume — after that first play the seek sticks.
+  // not work on blob URLs. The reliable trick is play → pause → seek → play,
+  // but the seek must happen only after the clock is really running: the play()
+  // promise and the 'playing' event both fire too early, so we wait for the
+  // first 'timeupdate' (muted, so the initial 0s is inaudible) and seek there.
   function playBlobFrom(target) {
-    media.currentTime = target;
     const wasMuted = media.muted;
     media.muted = true;
-    media.play().catch(() => {}).then(() => {
+    media.currentTime = target;   // ignored on iOS first play; harmless otherwise
+    media.play().catch(() => {});
+    const onFirstTick = () => {
+      media.removeEventListener('timeupdate', onFirstTick);
       media.pause();
-      media.currentTime = target;
+      media.currentTime = target; // now honored: the element has started playing
       media.muted = wasMuted;
       media.play().catch(() => {});
       timeCurrent.textContent = fmtTime(media.currentTime);
-    });
+    };
+    media.addEventListener('timeupdate', onFirstTick);
   }
 
   btnPlay.addEventListener('click', () => {
