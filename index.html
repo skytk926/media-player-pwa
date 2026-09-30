@@ -727,6 +727,8 @@
         highlightCue(-1);
       }
     }
+
+    dbg();
   }
 
   function onLoaded() {
@@ -1210,24 +1212,53 @@
     fileInput.value = '';
   });
 
-  // Start a device-file (blob:) source from `target` seconds. iOS ignores a
-  // currentTime set before the element's very first play, and #t= fragments do
-  // not work on blob URLs. The reliable trick is play → pause → seek → play,
-  // but the seek must happen only after the clock is really running: the play()
-  // promise and the 'playing' event both fire too early, so we wait for the
-  // first 'timeupdate' (muted, so the initial 0s is inaudible) and seek there.
+  // Start a device-file (blob:) source from `target` seconds.
+  //
+  // iOS ignores a currentTime set before the element's very first play, and
+  // #t= fragments do not work on blob URLs. The one condition we know DOES make
+  // a pre-play seek stick is "a NEW load that comes after the element has played
+  // once" — that's exactly why a *second* file selection seeks correctly while
+  // the first one doesn't. So we reproduce that: (1) play muted to activate the
+  // element, (2) re-load the same file as a fresh blob URL, (3) seek + play.
   function playBlobFrom(target) {
+    const item = playlist[currentIndex];
     const wasMuted = media.muted;
-    media.muted = true;
-    media.currentTime = target;   // ignored on iOS first play; harmless otherwise
-    media.play().catch(() => {});
-    const onFirstTick = () => {
-      media.removeEventListener('timeupdate', onFirstTick);
-      media.pause();
-      media.currentTime = target; // now honored: the element has started playing
+
+    const beginAt = () => {
+      media.currentTime = target;
+      media.playbackRate = parseFloat(speedSelect.value);
       media.muted = wasMuted;
       media.play().catch(() => {});
       timeCurrent.textContent = fmtTime(media.currentTime);
+      dbg();
+    };
+
+    // Phase 1 — activate the element with a silent play from 0.
+    media.muted = true;
+    media.currentTime = target;
+    media.play().catch(() => {});
+
+    const onFirstTick = () => {
+      media.removeEventListener('timeupdate', onFirstTick);
+      media.pause();
+
+      // Phase 2 — re-load as a fresh blob URL, then seek once its metadata is
+      // ready. Without this re-load the seek stays phantom (same-load case).
+      if (item && item.file && typeof item.file.slice === 'function') {
+        const freshUrl = URL.createObjectURL(item.file);
+        if (item.objectUrl && /^blob:/i.test(item.objectUrl)) {
+          URL.revokeObjectURL(item.objectUrl);
+        }
+        item.objectUrl = freshUrl;
+        const onMeta = () => {
+          media.removeEventListener('loadedmetadata', onMeta);
+          beginAt();
+        };
+        media.addEventListener('loadedmetadata', onMeta);
+        media.src = freshUrl;
+      } else {
+        beginAt();
+      }
     };
     media.addEventListener('timeupdate', onFirstTick);
   }
@@ -1457,10 +1488,29 @@
     if (media) media.playbackRate = parseFloat(speedSelect.value);
   });
 
+  // Temporary debug readout — shows live media state so we can see exactly what
+  // iOS reports during a seek. Safe to delete once the seek bug is fixed.
+  function dbg() {
+    const el = document.getElementById('dbgReadout');
+    if (!el || !media) return;
+    let sc = '0';
+    try {
+      if (media.seekable && media.seekable.length > 0) {
+        sc = media.seekable.start(0).toFixed(1) + '-' + media.seekable.end(media.seekable.length - 1).toFixed(1);
+      }
+    } catch (e) {}
+    el.textContent = 't=' + (isFinite(media.currentTime) ? media.currentTime.toFixed(1) : '?') +
+      ' d=' + (isFinite(media.duration) ? media.duration.toFixed(1) : '?') +
+      ' r=' + media.readyState + ' seekable=' + sc + ' paused=' + media.paused +
+      ' muted=' + media.muted + ' src=' + (media.currentSrc || '').slice(0, 8);
+  }
+
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js');
   }
 </script>
+
+<div id="dbgReadout" style="position:fixed;left:6px;bottom:6px;z-index:9999;background:rgba(0,0,0,.85);color:#0f0;font:11px/1.4 monospace;padding:4px 8px;border-radius:4px;max-width:100%;white-space:nowrap;overflow:hidden">t=-</div>
 
 </body>
 </html>
