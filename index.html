@@ -1228,13 +1228,24 @@
       if (target !== null && isFinite(media.duration)) {
         pendingSeek = null;
         const t = Math.max(0, Math.min(1, target)) * media.duration;
-        media.currentTime = t;
-        const p = media.play();
-        p.then(() => {
+        const apply = () => {
           if (isFinite(media.duration)) {
             media.currentTime = Math.max(0, Math.min(1, target)) * media.duration;
           }
-        }).catch(() => {});
+        };
+        media.currentTime = t; // best-effort pre-play seek
+        // iOS Safari often ignores currentTime set before playback starts, and
+        // the play() promise can resolve before the media engine is running.
+        // 'playing' fires once playback actually begins — the most reliable
+        // moment to re-apply the seek.
+        media.addEventListener('playing', apply, { once: true });
+        const p = media.play();
+        if (p && p.then) {
+          p.then(() => {
+            apply();
+            setTimeout(apply, 120);
+          }).catch(() => {});
+        }
       } else {
         // If a repeat loop is active and playback reached the end, resume from
         // the loop start instead of letting play() restart from 0.
@@ -1364,6 +1375,10 @@
       // pre-play seek on iOS and start from 0 otherwise.
       pendingSeek = media.paused ? (t / media.duration) : null;
       pendingJumpSecs = null;
+      // Immediate UI feedback even if the seek doesn't actually land (iOS).
+      progressSlider.value = Math.round((t / media.duration) * 1000);
+      timeCurrent.textContent = fmtTime(t);
+      updateSliderFill();
     } else {
       // Duration not known yet — remember the target time and apply it on load.
       pendingJumpSecs = secs;
@@ -1385,6 +1400,7 @@
       // While playing the seek is honored immediately; while paused, play()
       // may ignore it (iOS), so remember it to re-apply on the next play.
       pendingSeek = media.paused ? frac : null;
+      timeCurrent.textContent = fmtTime(frac * media.duration);
     } else {
       // Metadata not loaded yet — remember the fraction for onLoaded/onCanPlay.
       pendingSeek = frac;
