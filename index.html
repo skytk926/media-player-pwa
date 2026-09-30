@@ -556,6 +556,7 @@
   let isVideo = false;
   let dragging = false;
   let pendingSeek = null; // fraction 0..1 requested before metadata loaded
+  let pendingJumpSecs = null; // absolute seconds from a time-jump before metadata
 
   const PLAY_ICON = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" style="display:block"><path d="M8 5v14l11-7z"/></svg>';
   const PAUSE_ICON = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" style="display:block"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
@@ -626,6 +627,7 @@
     if (range) {
       repeatRange = range;
       media.currentTime = range.start;
+      pendingSeek = null;
       media.play().then(() => { btnPlay.innerHTML = PAUSE_ICON; }).catch(() => {});
       btnRepeat.textContent = '区間リピート中';
     } else {
@@ -672,7 +674,6 @@
       media.removeEventListener('loadedmetadata', onLoaded);
       media.removeEventListener('ended', onEnded);
       media.removeEventListener('canplay', onCanPlay);
-      media.removeEventListener('seeked', onSeeked);
     }
     media = el;
     media.playbackRate = parseFloat(speedSelect.value);
@@ -680,7 +681,6 @@
     media.addEventListener('loadedmetadata', onLoaded);
     media.addEventListener('ended', onEnded);
     media.addEventListener('canplay', onCanPlay);
-    media.addEventListener('seeked', onSeeked);
   }
 
   function onTimeUpdate() {
@@ -732,7 +732,17 @@
   function onLoaded() {
     if (!media || !isFinite(media.duration)) return;
     timeDuration.textContent = fmtTime(media.duration);
-    if (pendingSeek !== null) {
+    if (pendingJumpSecs !== null) {
+      // A time-jump was entered before the duration was known. Apply it now,
+      // then keep it as a fraction so a later play() can re-apply it if this
+      // early seek doesn't stick (iOS Safari).
+      const t = Math.max(0, Math.min(pendingJumpSecs, media.duration));
+      media.currentTime = t;
+      progressSlider.value = Math.round((t / media.duration) * 1000);
+      timeCurrent.textContent = fmtTime(media.currentTime);
+      pendingJumpSecs = null;
+      pendingSeek = media.paused ? (t / media.duration) : null;
+    } else if (pendingSeek !== null) {
       // The user dragged the slider before the metadata (duration) arrived.
       // Apply that seek now instead of dropping it, so playback starts at the
       // position the user chose rather than 0. Keep pendingSeek so it can be
@@ -756,11 +766,6 @@
       media.currentTime = Math.max(0, Math.min(1, pendingSeek)) * media.duration;
       timeCurrent.textContent = fmtTime(media.currentTime);
     }
-  }
-
-  // A seek has actually completed, so the requested position is now in effect.
-  function onSeeked() {
-    pendingSeek = null;
   }
 
   function updateSliderFill() {
@@ -827,6 +832,7 @@
       div.addEventListener('click', () => {
         if (media && isFinite(media.duration)) {
           media.currentTime = cue.start;
+          pendingSeek = null;
           highlightCue(i);
           media.play().then(() => { btnPlay.innerHTML = PAUSE_ICON; }).catch(() => {});
         }
@@ -1028,6 +1034,7 @@
     fileName.textContent = item.name;
     progressSlider.value = 0;
     pendingSeek = null;
+    pendingJumpSecs = null;
     updateSliderFill();
     timeCurrent.textContent = '00:00';
     timeDuration.textContent = '00:00';
@@ -1297,6 +1304,7 @@
       nt = wrapTime(t);
     }
     media.currentTime = nt;
+    pendingSeek = media.paused ? (nt / media.duration) : null;
 
     // Show the span just jumped over (old position ~ new position) in the
     // range box, for every skip and in both normal playback and range repeat:
@@ -1339,7 +1347,7 @@
   });
 
   function doJump() {
-    if (!media || !isFinite(media.duration)) {
+    if (!media || !media.src) {
       showToast('请先加载音频/视频。');
       return;
     }
@@ -1348,10 +1356,19 @@
       showToast('请输入时间。<br>例: 1:30 或 90');
       return;
     }
-    const t = Math.min(secs, media.duration);
-    pendingSeek = t / media.duration;
-    media.currentTime = t;
     jumpInput.value = '';
+    if (isFinite(media.duration)) {
+      const t = Math.min(secs, media.duration);
+      media.currentTime = t;
+      // Remember the target only while paused: a later play() may ignore a
+      // pre-play seek on iOS and start from 0 otherwise.
+      pendingSeek = media.paused ? (t / media.duration) : null;
+      pendingJumpSecs = null;
+    } else {
+      // Duration not known yet — remember the target time and apply it on load.
+      pendingJumpSecs = secs;
+      pendingSeek = null;
+    }
   }
 
   btnJump.addEventListener('click', doJump);
@@ -1363,10 +1380,14 @@
     if (!media) return;
     dragging = true;
     const frac = Math.max(0, Math.min(1, progressSlider.value / 1000));
-    pendingSeek = frac;
     if (isFinite(media.duration)) {
       media.currentTime = frac * media.duration;
-      timeCurrent.textContent = fmtTime(media.currentTime);
+      // While playing the seek is honored immediately; while paused, play()
+      // may ignore it (iOS), so remember it to re-apply on the next play.
+      pendingSeek = media.paused ? frac : null;
+    } else {
+      // Metadata not loaded yet — remember the fraction for onLoaded/onCanPlay.
+      pendingSeek = frac;
     }
     updateSliderFill();
   });
