@@ -557,6 +557,7 @@
   let dragging = false;
   let pendingSeek = null; // fraction 0..1 requested before metadata loaded
   let pendingJumpSecs = null; // absolute seconds from a time-jump before metadata
+  let busySeek = false; // true during a blob warm-up/reload; suppress the bar dipping to 0
 
   const PLAY_ICON = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" style="display:block"><path d="M8 5v14l11-7z"/></svg>';
   const PAUSE_ICON = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" style="display:block"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
@@ -685,6 +686,7 @@
 
   function onTimeUpdate() {
     if (!media || !isFinite(media.duration)) return;
+    if (busySeek) { dbg(); return; } // warm-up in progress: don't let the bar dip to 0
     if (!dragging) {
       progressSlider.value = (media.currentTime / media.duration) * 1000;
       updateSliderFill();
@@ -754,6 +756,9 @@
       progressSlider.value = Math.round(frac * 1000);
       timeCurrent.textContent = fmtTime(media.currentTime);
     } else {
+      // During a blob warm-up reload the currentTime is legitimately 0 for a
+      // moment; don't wipe the target position off the bar.
+      if (busySeek) { updateSliderFill(); return; }
       // No pending seek. A media fragment (#t=) may have already positioned
       // the element, so mirror currentTime instead of blindly resetting to 0.
       progressSlider.value = Math.round((Math.max(0, media.currentTime) / media.duration) * 1000);
@@ -1223,13 +1228,20 @@
   function playBlobFrom(target) {
     const item = playlist[currentIndex];
     const wasMuted = media.muted;
+    busySeek = true;
 
     const beginAt = () => {
       media.currentTime = target;
       media.playbackRate = parseFloat(speedSelect.value);
       media.muted = wasMuted;
       media.play().catch(() => {});
-      timeCurrent.textContent = fmtTime(media.currentTime);
+      // Show the target immediately so the bar doesn't dip to 0 and back.
+      if (isFinite(media.duration) && media.duration > 0) {
+        progressSlider.value = Math.round((target / media.duration) * 1000);
+        updateSliderFill();
+      }
+      timeCurrent.textContent = fmtTime(target);
+      busySeek = false;
       dbg();
     };
 
@@ -1261,6 +1273,15 @@
       }
     };
     media.addEventListener('timeupdate', onFirstTick);
+
+    // Safety net: if the warm-up never completes, unfreeze the UI.
+    setTimeout(() => {
+      if (busySeek) {
+        busySeek = false;
+        media.muted = wasMuted;
+        if (media.paused) media.play().catch(() => {});
+      }
+    }, 3000);
   }
 
   btnPlay.addEventListener('click', () => {
