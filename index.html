@@ -752,8 +752,10 @@
       progressSlider.value = Math.round(frac * 1000);
       timeCurrent.textContent = fmtTime(media.currentTime);
     } else {
-      progressSlider.value = 0;
-      timeCurrent.textContent = '00:00';
+      // No pending seek. A media fragment (#t=) may have already positioned
+      // the element, so mirror currentTime instead of blindly resetting to 0.
+      progressSlider.value = Math.round((Math.max(0, media.currentTime) / media.duration) * 1000);
+      timeCurrent.textContent = fmtTime(media.currentTime);
     }
     updateSliderFill();
   }
@@ -1219,45 +1221,44 @@
       return;
     }
     if (media.paused) {
-      // If the user positioned the playhead (drag or time jump) before the
-      // media was playable, honor that position. iOS Safari in particular
-      // ignores a currentTime set before playback starts, so apply it both
-      // before play() and again right after playback begins.
-      const target = pendingSeek;
-
-      if (target !== null && isFinite(media.duration)) {
+      // Resolve the position the user chose (time jump or slider drag) into an
+      // absolute second offset. iOS Safari silently ignores a currentTime set
+      // before the first play(), but it DOES honor a native media fragment, so
+      // we reload the source with "#t=<seconds>" and start playback from there.
+      let fragSecs = null;
+      if (pendingJumpSecs !== null) {
+        fragSecs = Math.max(0, pendingJumpSecs);
+        pendingJumpSecs = null;
         pendingSeek = null;
-        const t = Math.max(0, Math.min(1, target)) * media.duration;
-        const apply = () => {
-          if (isFinite(media.duration)) {
-            media.currentTime = Math.max(0, Math.min(1, target)) * media.duration;
-          }
-        };
-        media.currentTime = t; // best-effort pre-play seek
-        // iOS Safari often ignores currentTime set before playback starts, and
-        // the play() promise can resolve before the media engine is running.
-        // 'playing' fires once playback actually begins — the most reliable
-        // moment to re-apply the seek.
-        media.addEventListener('playing', apply, { once: true });
-        const p = media.play();
-        if (p && p.then) {
-          p.then(() => {
-            apply();
-            setTimeout(apply, 120);
-          }).catch(() => {});
-        }
-      } else {
-        // If a repeat loop is active and playback reached the end, resume from
-        // the loop start instead of letting play() restart from 0.
-        if (media.ended) {
-          if (repeatRange) {
-            media.currentTime = repeatRange.start;
-          } else if (repeatAll) {
-            media.currentTime = 0;
-          }
-        }
-        media.play().catch(() => {});
+      } else if (pendingSeek !== null && isFinite(media.duration)) {
+        fragSecs = Math.max(0, Math.min(1, pendingSeek)) * media.duration;
+        pendingSeek = null;
       }
+
+      if (fragSecs !== null && fragSecs > 0) {
+        const base = (media.currentSrc || media.src || '').split('#')[0];
+        if (base && !/^blob:/i.test(base)) {
+          media.src = base + '#t=' + fragSecs.toFixed(2);
+          media.load();
+          media.playbackRate = parseFloat(speedSelect.value);
+          media.play().catch(() => {});
+          btnPlay.innerHTML = PAUSE_ICON;
+          return;
+        }
+        // blob: URL (device file) — a plain seek is reliable enough there.
+        media.currentTime = fragSecs;
+      }
+
+      // If a repeat loop is active and playback reached the end, resume from
+      // the loop start instead of letting play() restart from 0.
+      if (media.ended) {
+        if (repeatRange) {
+          media.currentTime = repeatRange.start;
+        } else if (repeatAll) {
+          media.currentTime = 0;
+        }
+      }
+      media.play().catch(() => {});
       btnPlay.innerHTML = PAUSE_ICON;
     } else {
       media.pause();
