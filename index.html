@@ -524,7 +524,7 @@
   </div>
 </div>
 
-<audio id="audioElem"></audio>
+<audio id="audioElem" preload="auto"></audio>
 
 <script src="https://cdn.jsdelivr.net/npm/mp4box@0.5.3/dist/mp4box.all.min.js"></script>
 
@@ -1212,23 +1212,34 @@
       return;
     }
     if (media.paused) {
-      // Apply a seek the user made before the media was ready (some browsers,
-      // notably iOS Safari, ignore currentTime set before play begins).
-      if (pendingSeek !== null && isFinite(media.duration)) {
-        media.currentTime = Math.max(0, Math.min(1, pendingSeek)) * media.duration;
-        timeCurrent.textContent = fmtTime(media.currentTime);
+      // If the user positioned the playhead (drag or time jump) before the
+      // media was playable, honor that position. iOS Safari in particular
+      // ignores a currentTime set before playback starts, so apply it both
+      // before play() and again right after playback begins.
+      const target = pendingSeek;
+
+      if (target !== null && isFinite(media.duration)) {
         pendingSeek = null;
-      }
-      // If a repeat loop is active and playback reached the end, resume from
-      // the loop start instead of letting play() restart from 0.
-      if (media.ended) {
-        if (repeatRange) {
-          media.currentTime = repeatRange.start;
-        } else if (repeatAll) {
-          media.currentTime = 0;
+        const t = Math.max(0, Math.min(1, target)) * media.duration;
+        media.currentTime = t;
+        const p = media.play();
+        p.then(() => {
+          if (isFinite(media.duration)) {
+            media.currentTime = Math.max(0, Math.min(1, target)) * media.duration;
+          }
+        }).catch(() => {});
+      } else {
+        // If a repeat loop is active and playback reached the end, resume from
+        // the loop start instead of letting play() restart from 0.
+        if (media.ended) {
+          if (repeatRange) {
+            media.currentTime = repeatRange.start;
+          } else if (repeatAll) {
+            media.currentTime = 0;
+          }
         }
+        media.play().catch(() => {});
       }
-      media.play().catch(() => {});
       btnPlay.innerHTML = PAUSE_ICON;
     } else {
       media.pause();
@@ -1337,7 +1348,9 @@
       showToast('请输入时间。<br>例: 1:30 或 90');
       return;
     }
-    media.currentTime = Math.min(secs, media.duration);
+    const t = Math.min(secs, media.duration);
+    pendingSeek = t / media.duration;
+    media.currentTime = t;
     jumpInput.value = '';
   }
 
