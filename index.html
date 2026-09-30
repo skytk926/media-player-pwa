@@ -1210,6 +1210,23 @@
     fileInput.value = '';
   });
 
+  // Start a device-file (blob:) source from `target` seconds. iOS ignores a
+  // currentTime set before the element's very first play, and #t= fragments do
+  // not work on blob URLs, so we first "activate" the element with a muted
+  // play, then pause, seek and resume — after that first play the seek sticks.
+  function playBlobFrom(target) {
+    media.currentTime = target;
+    const wasMuted = media.muted;
+    media.muted = true;
+    media.play().catch(() => {}).then(() => {
+      media.pause();
+      media.currentTime = target;
+      media.muted = wasMuted;
+      media.play().catch(() => {});
+      timeCurrent.textContent = fmtTime(media.currentTime);
+    });
+  }
+
   btnPlay.addEventListener('click', () => {
     if (!media || !media.src) {
       if (playlist.length > 0) {
@@ -1236,15 +1253,23 @@
       }
 
       if (fragSecs !== null && fragSecs > 0) {
-        // The #t= media fragment is honored by iOS at load time — including for
-        // blob: URLs (device files), where a pre-play currentTime is just as
-        // ignored as it is for HTTP. So route both through the same reload.
         const base = (media.currentSrc || media.src || '').split('#')[0];
-        if (base) {
+        if (base && !/^blob:/i.test(base)) {
+          // HTTP (server file): the #t= fragment is honored by iOS at load
+          // time, so reload the source and start from there.
           media.src = base + '#t=' + fragSecs.toFixed(2);
           media.load();
           media.playbackRate = parseFloat(speedSelect.value);
           media.play().catch(() => {});
+          btnPlay.innerHTML = PAUSE_ICON;
+          return;
+        }
+        if (/^blob:/i.test(base)) {
+          // blob: (device file): #t= fragments are NOT supported for blob URLs
+          // on iOS, and a pre-play currentTime is ignored on the very first
+          // play. So warm the element up with a muted play→pause, then seek and
+          // resume — after that first activation the seek sticks.
+          playBlobFrom(fragSecs);
           btnPlay.innerHTML = PAUSE_ICON;
           return;
         }
