@@ -671,12 +671,16 @@
       media.removeEventListener('timeupdate', onTimeUpdate);
       media.removeEventListener('loadedmetadata', onLoaded);
       media.removeEventListener('ended', onEnded);
+      media.removeEventListener('canplay', onCanPlay);
+      media.removeEventListener('seeked', onSeeked);
     }
     media = el;
     media.playbackRate = parseFloat(speedSelect.value);
     media.addEventListener('timeupdate', onTimeUpdate);
     media.addEventListener('loadedmetadata', onLoaded);
     media.addEventListener('ended', onEnded);
+    media.addEventListener('canplay', onCanPlay);
+    media.addEventListener('seeked', onSeeked);
   }
 
   function onTimeUpdate() {
@@ -731,17 +735,32 @@
     if (pendingSeek !== null) {
       // The user dragged the slider before the metadata (duration) arrived.
       // Apply that seek now instead of dropping it, so playback starts at the
-      // position the user chose rather than 0.
+      // position the user chose rather than 0. Keep pendingSeek so it can be
+      // re-applied on 'canplay'/'play' if this early seek didn't stick.
       const frac = Math.max(0, Math.min(1, pendingSeek));
       media.currentTime = frac * media.duration;
       progressSlider.value = Math.round(frac * 1000);
       timeCurrent.textContent = fmtTime(media.currentTime);
-      pendingSeek = null;
     } else {
       progressSlider.value = 0;
       timeCurrent.textContent = '00:00';
     }
     updateSliderFill();
+  }
+
+  // Some browsers (notably iOS Safari) ignore a currentTime set before the
+  // media is playable. 'canplay' is a more reliable point to retry a seek that
+  // still hasn't landed.
+  function onCanPlay() {
+    if (pendingSeek !== null && media && isFinite(media.duration)) {
+      media.currentTime = Math.max(0, Math.min(1, pendingSeek)) * media.duration;
+      timeCurrent.textContent = fmtTime(media.currentTime);
+    }
+  }
+
+  // A seek has actually completed, so the requested position is now in effect.
+  function onSeeked() {
+    pendingSeek = null;
   }
 
   function updateSliderFill() {
@@ -1193,6 +1212,13 @@
       return;
     }
     if (media.paused) {
+      // Apply a seek the user made before the media was ready (some browsers,
+      // notably iOS Safari, ignore currentTime set before play begins).
+      if (pendingSeek !== null && isFinite(media.duration)) {
+        media.currentTime = Math.max(0, Math.min(1, pendingSeek)) * media.duration;
+        timeCurrent.textContent = fmtTime(media.currentTime);
+        pendingSeek = null;
+      }
       // If a repeat loop is active and playback reached the end, resume from
       // the loop start instead of letting play() restart from 0.
       if (media.ended) {
@@ -1324,13 +1350,10 @@
     if (!media) return;
     dragging = true;
     const frac = Math.max(0, Math.min(1, progressSlider.value / 1000));
+    pendingSeek = frac;
     if (isFinite(media.duration)) {
       media.currentTime = frac * media.duration;
       timeCurrent.textContent = fmtTime(media.currentTime);
-      pendingSeek = null;
-    } else {
-      // Metadata not loaded yet — remember the target so onLoaded applies it.
-      pendingSeek = frac;
     }
     updateSliderFill();
   });
