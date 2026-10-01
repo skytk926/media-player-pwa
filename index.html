@@ -66,7 +66,7 @@
   }
 
   .file-name {
-    flex: 1;
+    flex: 0 0 60%;
     background: rgba(30, 22, 60, 0.6);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
@@ -571,7 +571,6 @@
       let rangeEdited = false; // true once the user manually types a range
       let rangeFocused = false; // true while the user is editing a range box
       let justSkipped = false; // true right after a ±5s/±10s skip, suppresses the loop snap-back once
-      let rangePinned = false; // true after a skip in normal playback: hold the jumped-over span
 
   function showToast(msg, duration = 3000) {
     const overlay = document.createElement('div');
@@ -701,7 +700,7 @@
         // Range repeat: freeze the end time, but let the start time follow
         // the current playback position.
         repeatStartInput.value = fmtFull(media.currentTime);
-      } else if (!rangePinned) {
+      } else {
         // Default: a 10s window ending at the current position.
         setRangeFromCurrent(media.currentTime);
       }
@@ -913,7 +912,6 @@
     repeatRange = null;
     repeatAll = false;
     rangeEdited = false;
-    rangePinned = false;
     btnRepeat.textContent = 'リピート';
     btnRepeat.classList.remove('loop-one');
   }
@@ -1050,7 +1048,6 @@
     repeatRange = null;
     repeatAll = false;
     rangeEdited = false;
-    rangePinned = false;
     btnRepeat.textContent = 'リピート';
     btnRepeat.classList.remove('loop-one');
 
@@ -1403,18 +1400,17 @@
     media.currentTime = nt;
     pendingSeek = media.paused ? (nt / media.duration) : null;
 
-    // Show the span just jumped over (old position ~ new position) in the
-    // range box, for every skip and in both normal playback and range repeat:
-    // e.g. -5s at 7:39 -> 7:34 ~ 7:39, +5s at 7:34 -> 7:34 ~ 7:39.
-    const start = Math.min(cur, nt);
-    const end = Math.max(cur, nt);
-    repeatStartInput.value = fmtFull(start);
-    repeatEndInput.value = fmtFull(end);
+    // Range repeat: show the span just jumped over (old position ~ new
+    // position) and loop it. Normal playback: keep the box as a 10s window
+    // ending at the new position, matching the non-repeat default.
     if (repeatRange) {
+      const start = Math.min(cur, nt);
+      const end = Math.max(cur, nt);
+      repeatStartInput.value = fmtFull(start);
+      repeatEndInput.value = fmtFull(end);
       repeatRange = { start, end };
     } else {
-      // Hold this span so the "last 10s" auto-follow doesn't overwrite it.
-      rangePinned = true;
+      setRangeFromCurrent(nt);
     }
   }
 
@@ -1430,7 +1426,6 @@
     el.addEventListener('blur', () => { rangeFocused = false; });
     el.addEventListener('input', () => {
       rangeEdited = repeatStartInput.value.trim() !== '' || repeatEndInput.value.trim() !== '';
-      rangePinned = false;
       syncRepeatRange();
     });
   });
