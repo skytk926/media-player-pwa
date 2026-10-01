@@ -28,11 +28,19 @@
   html {
     min-height: 100%;
     background-color: #2b1a4d;
+  }
+
+  /* Full-screen background layer: position:fixed + inset:0 is the most
+     reliable way to cover the whole screen on iOS Safari (which ignores
+     background-attachment: fixed and mis-sizes cover on body/html). */
+  .bg {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
     background-image: url("背景画像.png");
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    background-attachment: fixed;
   }
 
   body {
@@ -468,6 +476,8 @@
 </style>
 </head>
 <body>
+
+<div class="bg"></div>
 
 <div class="player">
   <div class="file-area">
