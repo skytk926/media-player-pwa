@@ -615,6 +615,8 @@
     if (repeatRange) {
       repeatRange = null;
       repeatAll = true;
+      rangeEdited = false;
+      if (isFinite(media.duration)) setRangeFromCurrent(media.currentTime);
       btnRepeat.textContent = 'リピート中';
       return;
     }
@@ -1355,9 +1357,15 @@
         }
       }
       media.play().catch(() => {});
+      if (!rangeEdited && !repeatRange && isFinite(media.duration)) {
+        setRangeFromCurrent(media.currentTime);
+      }
       btnPlay.innerHTML = PAUSE_ICON;
     } else {
       media.pause();
+      if (!rangeEdited && !repeatRange && isFinite(media.duration)) {
+        setRangeFromCurrent(media.currentTime);
+      }
       btnPlay.innerHTML = PLAY_ICON;
     }
   });
@@ -1414,17 +1422,24 @@
     media.currentTime = nt;
     pendingSeek = media.paused ? (nt / media.duration) : null;
 
-    // Range repeat: show the span just jumped over (old position ~ new
-    // position) and loop it. Normal playback: keep the box as a 10s window
-    // ending at the new position, matching the non-repeat default.
+    // Show the span just jumped over (old position ~ new position), sized by
+    // the skip. In range-repeat mode this also becomes the new loop range; in
+    // normal playback it just reflects the skip distance (e.g. ±5s → a 5s
+    // span ending at the pre-skip position). A backward skip that wraps to the
+    // end has no meaningful span, so fall back to the default 10s window there.
     if (repeatRange) {
       const start = Math.min(cur, nt);
       const end = Math.max(cur, nt);
       repeatStartInput.value = fmtFull(start);
       repeatEndInput.value = fmtFull(end);
       repeatRange = { start, end };
-    } else {
+    } else if (delta < 0 && t < 0) {
       setRangeFromCurrent(nt);
+    } else {
+      const start = Math.min(cur, nt);
+      const end = Math.max(cur, nt);
+      repeatStartInput.value = fmtFull(start);
+      repeatEndInput.value = fmtFull(end);
     }
   }
 
