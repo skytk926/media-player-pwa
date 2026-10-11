@@ -1243,11 +1243,34 @@
     const wasMuted = media.muted;
     busySeek = true;
 
+    // Keep the target as a pending seek so the global onLoaded/onCanPlay
+    // handlers re-apply it at the reliable 'canplay' point after the fresh
+    // reload below. A seek set only at 'loadedmetadata' is still sometimes
+    // phantom on iOS, which is exactly the "plays from 0" symptom.
+    if (isFinite(media.duration) && media.duration > 0) {
+      pendingSeek = target / media.duration;
+    }
+
     const beginAt = () => {
       media.currentTime = target;
       media.playbackRate = parseFloat(speedSelect.value);
       media.muted = wasMuted;
       media.play().catch(() => {});
+      pendingSeek = null; // consumed
+      // Last-resort: if the pre-play seek was still phantom, re-seek once
+      // playback has actually started (a seek while playing is always honored).
+      const fixup = () => {
+        media.removeEventListener('playing', fixup);
+        if (isFinite(media.duration) && Math.abs(media.currentTime - target) > 0.5) {
+          media.currentTime = target;
+          timeCurrent.textContent = fmtTime(target);
+          if (isFinite(media.duration) && media.duration > 0) {
+            progressSlider.value = Math.round((target / media.duration) * 1000);
+            updateSliderFill();
+          }
+        }
+      };
+      media.addEventListener('playing', fixup);
       // Show the target immediately so the bar doesn't dip to 0 and back.
       if (isFinite(media.duration) && media.duration > 0) {
         progressSlider.value = Math.round((target / media.duration) * 1000);
@@ -1267,19 +1290,21 @@
       media.removeEventListener('timeupdate', onFirstTick);
       media.pause();
 
-      // Phase 2 — re-load as a fresh blob URL, then seek once its metadata is
-      // ready. Without this re-load the seek stays phantom (same-load case).
+      // Phase 2 — re-load as a fresh blob URL, then seek once it can actually
+      // play ('canplay', not just 'loadedmetadata' — canplay is the point iOS
+      // honors a pre-play seek). Without this re-load the seek stays phantom
+      // (same-load case).
       if (item && item.file && typeof item.file.slice === 'function') {
         const freshUrl = URL.createObjectURL(item.file);
         if (item.objectUrl && /^blob:/i.test(item.objectUrl)) {
           URL.revokeObjectURL(item.objectUrl);
         }
         item.objectUrl = freshUrl;
-        const onMeta = () => {
-          media.removeEventListener('loadedmetadata', onMeta);
+        const onCan = () => {
+          media.removeEventListener('canplay', onCan);
           beginAt();
         };
-        media.addEventListener('loadedmetadata', onMeta);
+        media.addEventListener('canplay', onCan);
         media.src = freshUrl;
       } else {
         beginAt();
@@ -1291,6 +1316,7 @@
     setTimeout(() => {
       if (busySeek) {
         busySeek = false;
+        pendingSeek = null;
         media.muted = wasMuted;
         if (media.paused) media.play().catch(() => {});
       }
