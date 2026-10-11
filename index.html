@@ -1241,6 +1241,26 @@
     fileInput.value = '';
   });
 
+  // Re-assert `target` once playback has actually started. A seek set while
+  // paused is often "phantom" on iOS Safari: `currentTime` reports the target
+  // (so the bar looks right) but the decoder never moved — and, worse, the
+  // phantom makes `currentTime` keep lying, so a drift check like
+  // `Math.abs(currentTime - target)` sees no error and skips the fix. A seek
+  // while *playing* is always honored, and re-seeking to the current position
+  // is a harmless no-op, so just re-assert unconditionally.
+  function reassertSeek(target) {
+    const fixup = () => {
+      media.removeEventListener('playing', fixup);
+      media.currentTime = target;
+      timeCurrent.textContent = fmtTime(target);
+      if (isFinite(media.duration) && media.duration > 0) {
+        progressSlider.value = Math.round((target / media.duration) * 1000);
+        updateSliderFill();
+      }
+    };
+    media.addEventListener('playing', fixup);
+  }
+
   // Start a device-file (blob:) source from `target` seconds.
   //
   // iOS ignores a currentTime set before the element's very first play, and
@@ -1268,20 +1288,9 @@
       media.muted = wasMuted;
       media.play().catch(() => {});
       pendingSeek = null; // consumed
-      // Last-resort: if the pre-play seek was still phantom, re-seek once
-      // playback has actually started (a seek while playing is always honored).
-      const fixup = () => {
-        media.removeEventListener('playing', fixup);
-        if (isFinite(media.duration) && Math.abs(media.currentTime - target) > 0.5) {
-          media.currentTime = target;
-          timeCurrent.textContent = fmtTime(target);
-          if (isFinite(media.duration) && media.duration > 0) {
-            progressSlider.value = Math.round((target / media.duration) * 1000);
-            updateSliderFill();
-          }
-        }
-      };
-      media.addEventListener('playing', fixup);
+      // Re-assert the target once playback has actually started (the phantom
+      // makes currentTime lie, so this is done unconditionally).
+      reassertSeek(target);
       // Show the target immediately so the bar doesn't dip to 0 and back.
       if (isFinite(media.duration) && media.duration > 0) {
         progressSlider.value = Math.round((target / media.duration) * 1000);
@@ -1368,6 +1377,9 @@
           media.load();
           media.playbackRate = parseFloat(speedSelect.value);
           media.play().catch(() => {});
+          // #t= can still be ignored (or the reload not re-position the
+          // decoder), so re-assert the target once playback has started.
+          reassertSeek(fragSecs);
           btnPlay.innerHTML = PAUSE_ICON;
           return;
         }
