@@ -585,6 +585,7 @@
       let rangeEdited = false; // true once the user manually types a range
       let rangeFocused = false; // true while the user is editing a range box
       let justSkipped = false; // true right after a ±5s/±10s skip, suppresses the loop snap-back once
+      let frozenRange = null; // {start,end} set by a skip; box stays frozen until playback passes `end`
 
   function showToast(msg, duration = 3000) {
     const overlay = document.createElement('div');
@@ -616,6 +617,7 @@
       repeatRange = null;
       repeatAll = true;
       rangeEdited = false;
+      frozenRange = null;
       if (isFinite(media.duration)) setRangeFromCurrent(media.currentTime);
       btnRepeat.textContent = 'リピート中';
       return;
@@ -642,12 +644,14 @@
 
     if (range) {
       repeatRange = range;
+      frozenRange = null;
       media.currentTime = range.start;
       pendingSeek = null;
       media.play().then(() => { btnPlay.innerHTML = PAUSE_ICON; }).catch(() => {});
       btnRepeat.textContent = '区間リピート中';
     } else {
       repeatAll = true;
+      frozenRange = null;
       btnRepeat.textContent = 'リピート中';
     }
     btnRepeat.classList.add('loop-one');
@@ -716,7 +720,12 @@
         // Range repeat: freeze the end time, but let the start time follow
         // the current playback position.
         repeatStartInput.value = fmtFull(media.currentTime);
+      } else if (frozenRange && media.currentTime <= frozenRange.end) {
+        // A ±5s/±10s skip froze the box to the span just jumped over; keep it
+        // frozen while playback is still inside that span. Once it advances
+        // past the span's end, fall through to the default live window below.
       } else {
+        frozenRange = null;
         // Default: a 10s window ending at the current position.
         setRangeFromCurrent(media.currentTime);
       }
@@ -928,6 +937,7 @@
     repeatRange = null;
     repeatAll = false;
     rangeEdited = false;
+    frozenRange = null;
     btnRepeat.textContent = 'リピート';
     btnRepeat.classList.remove('loop-one');
   }
@@ -1064,6 +1074,7 @@
     repeatRange = null;
     repeatAll = false;
     rangeEdited = false;
+    frozenRange = null;
     btnRepeat.textContent = 'リピート';
     btnRepeat.classList.remove('loop-one');
 
@@ -1459,13 +1470,21 @@
       repeatStartInput.value = fmtFull(start);
       repeatEndInput.value = fmtFull(end);
       repeatRange = { start, end };
+      frozenRange = null;
     } else if (delta < 0 && t < 0) {
+      // Backward skip that wrapped to the end has no meaningful span, so
+      // fall back to the default 10s window.
+      frozenRange = null;
       setRangeFromCurrent(nt);
     } else {
       const start = Math.min(cur, nt);
       const end = Math.max(cur, nt);
       repeatStartInput.value = fmtFull(start);
       repeatEndInput.value = fmtFull(end);
+      // Only a backward skip freezes the box to the span just re-listened to.
+      // A forward skip keeps the old behaviour: the box shows the span for a
+      // moment, then returns to the default live 10s window.
+      frozenRange = (delta < 0) ? { start, end } : null;
     }
   }
 
@@ -1481,6 +1500,7 @@
     el.addEventListener('blur', () => { rangeFocused = false; });
     el.addEventListener('input', () => {
       rangeEdited = repeatStartInput.value.trim() !== '' || repeatEndInput.value.trim() !== '';
+      frozenRange = null; // a manual edit cancels any skip-frozen span
       syncRepeatRange();
     });
   });
