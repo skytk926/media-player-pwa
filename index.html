@@ -1242,23 +1242,26 @@
   });
 
   // Re-assert `target` once playback has actually started. A seek set while
-  // paused is often "phantom" on iOS Safari: `currentTime` reports the target
-  // (so the bar looks right) but the decoder never moved — and, worse, the
-  // phantom makes `currentTime` keep lying, so a drift check like
-  // `Math.abs(currentTime - target)` sees no error and skips the fix. A seek
-  // while *playing* is always honored, and re-seeking to the current position
-  // is a harmless no-op, so just re-assert unconditionally.
+  // paused is "phantom" on iOS Safari: `currentTime` reports the target (so the
+  // bar looks right) but the decoder never moved. The 'playing' event can fire
+  // while that lie is still in effect (so re-asserting there is a no-op), but by
+  // the first 'timeupdate' the position is truthful — so re-check there, and a
+  // seek while *playing* is always honored.
   function reassertSeek(target) {
-    const fixup = () => {
-      media.removeEventListener('playing', fixup);
-      media.currentTime = target;
-      timeCurrent.textContent = fmtTime(target);
-      if (isFinite(media.duration) && media.duration > 0) {
-        progressSlider.value = Math.round((target / media.duration) * 1000);
-        updateSliderFill();
+    const reapply = () => {
+      media.removeEventListener('timeupdate', reapply);
+      if (isFinite(media.duration) && Math.abs(media.currentTime - target) > 0.5) {
+        media.currentTime = target;
+        timeCurrent.textContent = fmtTime(target);
+        if (media.duration > 0) {
+          progressSlider.value = Math.round((target / media.duration) * 1000);
+          updateSliderFill();
+        }
       }
     };
-    media.addEventListener('playing', fixup);
+    media.addEventListener('timeupdate', reapply);
+    // Safety: drop the listener if playback never delivers a truthful tick.
+    setTimeout(() => media.removeEventListener('timeupdate', reapply), 3000);
   }
 
   // Start a device-file (blob:) source from `target` seconds.
